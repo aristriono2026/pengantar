@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { db } from './firebase'
+import { db, auth } from './firebase'
 import { collection, query, where, doc, updateDoc, onSnapshot, setDoc, getDocs, deleteDoc } from 'firebase/firestore'
+import { updatePassword, signOut } from 'firebase/auth'
 
 export default function DashboardRW() {
   const navigate = useNavigate()
@@ -23,12 +24,16 @@ export default function DashboardRW() {
   const [searchWarga, setSearchWarga] = useState('')
   const [selectedNikWarga, setSelectedNikWarga] = useState([])
 
-  // State untuk Modal Edit Warga (12 Kolom)
   const [editWargaModal, setEditWargaModal] = useState(null)
   const [formEditWarga, setFormEditWarga] = useState({
     nik: '', nama: '', jenis_kelamin: 'Lk', tempat_lahir: '', tanggal_lahir: '',
     alamat: '', rt: '', rw: '05', status_keluarga: '', status_perkawinan: 'Belum Kawin', agama: '', pekerjaan: ''
   })
+
+  // State untuk fitur Ganti Password
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
   useEffect(() => {
     const q = query(collection(db, "surat"), where("status", "in", ["Menunggu RW", "Disetujui RW", "Ditolak"]));
@@ -298,6 +303,50 @@ export default function DashboardRW() {
     reader.readAsText(file);
   }
 
+  // FUNGSI GANTI PASSWORD
+  const handleGantiPassword = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      return alert("Password baru dan konfirmasi password tidak cocok!");
+    }
+    if (newPassword.length < 6) {
+      return alert("Password minimal 6 karakter!");
+    }
+
+    try {
+      setIsChangingPassword(true);
+      const user = auth.currentUser;
+      if (user) {
+        await updatePassword(user, newPassword);
+        alert("Password berhasil diubah! Silakan login kembali dengan password baru.");
+        handleLogout();
+      } else {
+        alert("Sesi tidak valid. Silakan logout dan login ulang.");
+      }
+    } catch (error) {
+      if (error.code === 'auth/requires-recent-login') {
+        alert("Sesi Anda sudah terlalu lama. Demi keamanan, silakan logout dan login kembali sebelum mengubah password.");
+      } else {
+        alert("Gagal mengubah password: " + error.message);
+      }
+    } finally {
+      setIsChangingPassword(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+  };
+
+  // FUNGSI LOGOUT
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.clear();
+      navigate('/');
+    } catch (error) {
+      console.error("Logout gagal: ", error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-10 relative">
       <nav className="hidden md:flex bg-green-700 text-white p-4 shadow-md justify-between items-center sticky top-0 z-40">
@@ -363,7 +412,6 @@ export default function DashboardRW() {
               </select>
             </div>
 
-            {/* TABEL RIWAYAT SURAT DI DASBOR RW */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
@@ -516,7 +564,7 @@ export default function DashboardRW() {
                           <td className="p-3 text-center">
                             <button 
                               onClick={() => handleBukaEditWarga(warga)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-bold text-xs shadow-sm"
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold text-xs shadow-sm"
                             >
                               Edit
                             </button>
@@ -531,9 +579,32 @@ export default function DashboardRW() {
           </div>
         )}
 
+        {/* MENU PROFIL & GANTI PASSWORD */}
         {activeMenu === 'profil' && (
           <div className="animate-fade-in-up space-y-6 max-w-md mx-auto">
-            <button onClick={() => navigate('/')} className="w-full bg-red-100 text-red-600 border border-red-200 font-bold py-4 rounded-xl text-sm shadow-sm flex items-center justify-center gap-2">Keluar (Logout)</button>
+            
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+              <h2 className="text-lg font-bold text-gray-800 border-b pb-2">Ganti Password</h2>
+              <form onSubmit={handleGantiPassword} className="space-y-4 text-sm">
+                <div>
+                  <label className="block font-semibold mb-1 text-gray-700">Password Baru</label>
+                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength="6" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-green-500" placeholder="Minimal 6 karakter" />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-gray-700">Konfirmasi Password Baru</label>
+                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength="6" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-green-500" placeholder="Ulangi password baru" />
+                </div>
+                <button type="submit" disabled={isChangingPassword} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-sm transition-all disabled:bg-green-400">
+                  {isChangingPassword ? 'Memproses...' : 'Simpan Password Baru'}
+                </button>
+              </form>
+            </div>
+            
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <button onClick={handleLogout} className="w-full bg-red-100 text-red-600 border border-red-200 font-bold py-4 rounded-xl text-sm shadow-sm flex items-center justify-center gap-2 hover:bg-red-200 transition-colors">
+                Keluar dari Sistem (Logout)
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -550,7 +621,7 @@ export default function DashboardRW() {
       {editWargaModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 bg-black/70 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in-up">
-            <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
+            <div className="p-4 bg-green-700 text-white flex justify-between items-center">
               <h3 className="font-bold text-base">Edit Data Warga</h3>
               <button onClick={() => setEditWargaModal(null)} className="text-white font-bold text-lg px-2">✕</button>
             </div>
@@ -571,7 +642,7 @@ export default function DashboardRW() {
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setEditWargaModal(null)} className="flex-1 bg-gray-200 font-bold py-3 rounded-xl text-xs">Batal</button>
-                <button type="submit" className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm">Simpan Perubahan</button>
+                <button type="submit" className="flex-[2] bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl text-xs shadow-sm">Simpan Perubahan</button>
               </div>
             </form>
           </div>

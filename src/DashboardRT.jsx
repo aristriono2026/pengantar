@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { db } from './firebase'
+import { db, auth } from './firebase'
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore'
+import { updatePassword, signOut } from 'firebase/auth'
 
 export default function DashboardRT() {
   const navigate = useNavigate()
-  const currentUserRT = "04" // RT akun yang sedang login
+  const currentUserRT = localStorage.getItem("currentUserRT") || "04"; // RT akun yang sedang login
 
   const [activeMenu, setActiveMenu] = useState('beranda') 
   const [cariNik, setCariNik] = useState('')
@@ -28,6 +29,11 @@ export default function DashboardRT() {
   
   const [dokumen, setDokumen] = useState({ fotoKTP: null, fotoKK: null, dokumenLainnya: [] })
 
+  // State untuk fitur Ganti Password
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+
   useEffect(() => {
     const q = query(collection(db, "surat"), where("rt_pengaju", "==", `RT ${currentUserRT}`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -44,7 +50,6 @@ export default function DashboardRT() {
     return `${formatTgl(hariIni)} s/d ${formatTgl(batasBerlaku)}`;
   }
 
-  // Fungsi Pencarian NIK dengan Validasi Wilayah RT
   const handleCari = async (e) => {
     e.preventDefault()
     if (!cariNik) return
@@ -127,10 +132,8 @@ export default function DashboardRT() {
   const handleMultiFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
-
     let loadedCount = 0;
     const newFilesBase64 = [];
-
     files.forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -294,6 +297,50 @@ export default function DashboardRT() {
     printWindow.document.close();
   }
 
+  // FUNGSI GANTI PASSWORD
+  const handleGantiPassword = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      return alert("Password baru dan konfirmasi password tidak cocok!");
+    }
+    if (newPassword.length < 6) {
+      return alert("Password minimal 6 karakter!");
+    }
+
+    try {
+      setIsChangingPassword(true);
+      const user = auth.currentUser;
+      if (user) {
+        await updatePassword(user, newPassword);
+        alert("Password berhasil diubah! Silakan login kembali dengan password baru.");
+        handleLogout();
+      } else {
+        alert("Sesi tidak valid. Silakan logout dan login ulang.");
+      }
+    } catch (error) {
+      if (error.code === 'auth/requires-recent-login') {
+        alert("Sesi Anda sudah terlalu lama. Demi keamanan, silakan logout dan login kembali sebelum mengubah password.");
+      } else {
+        alert("Gagal mengubah password: " + error.message);
+      }
+    } finally {
+      setIsChangingPassword(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+  };
+
+  // FUNGSI LOGOUT
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.clear();
+      navigate('/');
+    } catch (error) {
+      console.error("Logout gagal: ", error);
+    }
+  };
+
   const filteredRiwayat = riwayatSurat.filter(surat => {
     const matchStatus = filterStatus === 'Semua' || surat.status === filterStatus
     const matchSearch = surat.nama.toLowerCase().includes(searchKata.toLowerCase()) || surat.nik.includes(searchKata)
@@ -324,7 +371,7 @@ export default function DashboardRT() {
               <p className="text-xs text-gray-500 mb-4">Masukkan NIK warga. Sistem otomatis memvalidasi apakah warga tersebut terdaftar di RT {currentUserRT}.</p>
               
               <form onSubmit={handleCari} className="flex flex-col sm:flex-row gap-3">
-                <input type="text" value={cariNik} onChange={(e) => setCariNik(e.target.value)} placeholder="Masukkan 16 Digit NIK Warga RT 04..." className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" maxLength="16" required={!editModeId} disabled={editModeId} />
+                <input type="text" value={cariNik} onChange={(e) => setCariNik(e.target.value)} placeholder={`Masukkan 16 Digit NIK Warga RT ${currentUserRT}...`} className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" maxLength="16" required={!editModeId} disabled={editModeId} />
                 <button type="submit" disabled={editModeId} className={`font-bold py-3 px-6 rounded-xl transition-all ${editModeId ? 'bg-gray-300 text-gray-500' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'}`}>Cari Data</button>
               </form>
             </div>
@@ -437,7 +484,6 @@ export default function DashboardRT() {
                 </div>
               </div>
               
-              {/* TABEL RIWAYAT SURAT */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
@@ -509,9 +555,32 @@ export default function DashboardRT() {
           </div>
         )}
 
+        {/* MENU PROFIL & GANTI PASSWORD */}
         {activeMenu === 'profil' && (
           <div className="animate-fade-in-up space-y-6 max-w-md mx-auto">
-            <button onClick={() => navigate('/')} className="w-full bg-red-100 text-red-600 border border-red-200 font-bold py-4 rounded-xl text-sm shadow-sm flex items-center justify-center gap-2">Keluar (Logout)</button>
+            
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+              <h2 className="text-lg font-bold text-gray-800 border-b pb-2">Ganti Password</h2>
+              <form onSubmit={handleGantiPassword} className="space-y-4 text-sm">
+                <div>
+                  <label className="block font-semibold mb-1 text-gray-700">Password Baru</label>
+                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength="6" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Minimal 6 karakter" />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-gray-700">Konfirmasi Password Baru</label>
+                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength="6" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ulangi password baru" />
+                </div>
+                <button type="submit" disabled={isChangingPassword} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-sm transition-all disabled:bg-blue-400">
+                  {isChangingPassword ? 'Memproses...' : 'Simpan Password Baru'}
+                </button>
+              </form>
+            </div>
+            
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <button onClick={handleLogout} className="w-full bg-red-100 text-red-600 border border-red-200 font-bold py-4 rounded-xl text-sm shadow-sm flex items-center justify-center gap-2 hover:bg-red-200 transition-colors">
+                Keluar dari Sistem (Logout)
+              </button>
+            </div>
           </div>
         )}
       </div>
