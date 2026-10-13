@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth"; // Tambahkan ini
+import { getAuth } from "firebase/auth";
 
 // Mengambil data secara aman dari file .env
 const firebaseConfig = {
