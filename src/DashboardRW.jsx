@@ -12,6 +12,8 @@ export default function DashboardRW() {
   const navigate = useNavigate()
   
   const [activeMenu, setActiveMenu] = useState('antrean') 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
   const [semuaSurat, setSemuaSurat] = useState([])
   const [searchKata, setSearchKata] = useState('')
   const [filterArsip, setFilterArsip] = useState('Semua')
@@ -169,29 +171,67 @@ export default function DashboardRW() {
   const handleLogout = async () => { await signOut(auth); localStorage.clear(); navigate('/'); };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 font-sans text-gray-800 pb-20 md:pb-10 flex flex-col relative">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 font-sans text-gray-800 pb-10 flex flex-col relative">
       
-      {/* NAVBAR DESKTOP GLASSMORPHISM */}
-      <nav className="hidden md:flex bg-white/70 backdrop-blur-xl border-b border-white/50 text-blue-900 p-4 shadow-[0_4px_30px_rgb(0,0,0,0.03)] justify-between items-center sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 font-black text-lg">05</div>
-          <div><h1 className="text-lg font-extrabold tracking-tight">Dasbor Ketua RW</h1><p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">RW 05 Tambakreja</p></div>
-        </div>
-        <div className="flex gap-1.5 p-1 bg-blue-50/50 rounded-2xl border border-blue-100/50 backdrop-blur-sm">
-          {['antrean', 'arsip', 'warga', 'hapus-warga', 'profil'].map(menu => (
-            <button key={menu} onClick={() => setActiveMenu(menu)} className={`px-4 py-2 font-bold text-xs rounded-xl transition-all capitalize ${activeMenu === menu ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>
-              {menu === 'hapus-warga' ? 'Database' : menu}
+      {/* NAVBAR UNIFIED (PC & MOBILE) GLASSMORPHISM */}
+      <nav className="bg-white/80 backdrop-blur-xl border-b border-white/50 text-blue-900 p-4 shadow-sm sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          
+          {/* Logo & Judul Dasbor */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 font-black text-lg">05</div>
+            <div>
+              <h1 className="text-lg font-extrabold tracking-tight">Dasbor Ketua RW</h1>
+              <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">RW 05 Tambakreja</p>
+            </div>
+          </div>
+
+          {/* Navigasi Khusus PC/Desktop (Tampil di Layar Besar) */}
+          <div className="hidden md:flex gap-1.5 p-1 bg-blue-50/50 rounded-2xl border border-blue-100/50 backdrop-blur-sm">
+            {['antrean', 'arsip', 'warga', 'hapus-warga', 'profil'].map(menu => (
+              <button key={menu} onClick={() => setActiveMenu(menu)} className={`px-4 py-2 font-bold text-xs rounded-xl transition-all capitalize ${activeMenu === menu ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>
+                {menu === 'hapus-warga' ? 'Database' : menu}
+              </button>
+            ))}
+            <div className="w-px bg-blue-200/50 mx-1 my-2"></div>
+            {/* Menu Logout Sejajar Paling Kanan */}
+            <button onClick={handleLogout} className="px-5 py-2 font-bold text-xs rounded-xl transition-all bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-100 shadow-sm">
+              Logout
             </button>
-          ))}
+          </div>
+
+          {/* Tombol Menu Khusus HP/Mobile */}
+          <div className="md:hidden flex items-center">
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isMobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
+
+        {/* Dropdown Menu Khusus HP/Mobile (Di Kanan Atas) */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden absolute top-[72px] right-4 w-56 bg-white/95 backdrop-blur-2xl shadow-2xl border border-blue-100 rounded-2xl flex flex-col p-2 gap-1 z-50 animate-fade-in-up">
+            {['antrean', 'arsip', 'warga', 'hapus-warga', 'profil'].map(menu => (
+              <button key={menu} onClick={() => { setActiveMenu(menu); setIsMobileMenuOpen(false); }} className={`text-left px-4 py-3 font-bold text-sm rounded-xl transition-all capitalize ${activeMenu === menu ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-700' : 'text-blue-900/70 hover:bg-blue-50'}`}>
+                {menu === 'hapus-warga' ? 'Database Kependudukan' : menu}
+              </button>
+            ))}
+            <div className="h-px bg-blue-100/50 my-1 mx-2"></div>
+            {/* Menu Logout Khusus HP */}
+            <button onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} className="text-left px-4 py-3 font-bold text-sm rounded-xl text-red-600 hover:bg-red-50 transition-all">
+              Logout / Keluar
+            </button>
+          </div>
+        )}
       </nav>
 
-      {/* NAVBAR MOBILE */}
-      <div className="md:hidden bg-white/80 backdrop-blur-xl text-blue-900 p-4 shadow-sm border-b border-blue-100/50 sticky top-0 z-40 flex items-center gap-3">
-         <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white shadow-md font-black text-sm">05</div>
-         <div><h1 className="text-base font-extrabold tracking-tight">Dasbor RW 05</h1><p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{activeMenu.replace('-', ' ')}</p></div>
-      </div>
-
+      {/* AREA KONTEN UTAMA */}
       <div className="flex-1 max-w-6xl w-full mx-auto mt-6 px-4 space-y-8 relative z-10">
         
         {/* ANTREAN SURAT */}
@@ -404,7 +444,8 @@ export default function DashboardRW() {
               </form>
             </div>
             
-            <div className="bg-white/40 backdrop-blur-md p-2 rounded-3xl border border-white/60">
+            {/* Pada versi desktop tetap disediakan tombol alternatif Logout di bawah ganti password */}
+            <div className="bg-white/40 backdrop-blur-md p-2 rounded-3xl border border-white/60 md:hidden">
               <button onClick={handleLogout} className="w-full bg-white/60 hover:bg-red-50 text-red-600 border border-red-100 font-bold py-4 rounded-2xl text-sm shadow-sm flex items-center justify-center gap-2 transition-all">Logout / Keluar</button>
             </div>
           </div>
@@ -443,15 +484,6 @@ export default function DashboardRW() {
         </div>
       </footer>
 
-      {/* BOTTOM NAV MOBILE GLASSMORPHISM */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-white/60 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] flex justify-around p-1 pb-safe z-50">
-        <button onClick={() => setActiveMenu('antrean')} className={`flex flex-col items-center w-full py-2.5 rounded-xl transition-all ${activeMenu === 'antrean' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}><span className="text-[9px] font-extrabold uppercase tracking-widest">Antrean</span></button>
-        <button onClick={() => setActiveMenu('arsip')} className={`flex flex-col items-center w-full py-2.5 rounded-xl transition-all ${activeMenu === 'arsip' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}><span className="text-[9px] font-extrabold uppercase tracking-widest">Laporan</span></button>
-        <button onClick={() => setActiveMenu('warga')} className={`flex flex-col items-center w-full py-2.5 rounded-xl transition-all ${activeMenu === 'warga' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}><span className="text-[9px] font-extrabold uppercase tracking-widest">Impor</span></button>
-        <button onClick={() => setActiveMenu('hapus-warga')} className={`flex flex-col items-center w-full py-2.5 rounded-xl transition-all ${activeMenu === 'hapus-warga' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}><span className="text-[9px] font-extrabold uppercase tracking-widest">Database</span></button>
-        <button onClick={() => setActiveMenu('profil')} className={`flex flex-col items-center w-full py-2.5 rounded-xl transition-all ${activeMenu === 'profil' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}><span className="text-[9px] font-extrabold uppercase tracking-widest">Profil</span></button>
-      </div>
-
       {/* MODAL EDIT WARGA */}
       {editWargaModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-blue-900/40 backdrop-blur-md">
@@ -484,7 +516,7 @@ export default function DashboardRW() {
         </div>
       )}
 
-      {/* MODAL VERIFIKASI SURAT RW */}
+      {/* MODAL VERIFIKASI SURAT RW (DENGAN PENAMBAHAN DOKUMEN LAINNYA) */}
       {suratReview && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-blue-900/40 backdrop-blur-md">
           <div className="bg-white/90 backdrop-blur-2xl rounded-3xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl border border-white overflow-hidden animate-fade-in-up">
@@ -496,6 +528,7 @@ export default function DashboardRW() {
             <div className="p-6 overflow-y-auto space-y-5 flex-1 text-sm bg-white/50">
               {!modeTolak ? (
                 <>
+                  {/* RINCIAN DATA WARGA */}
                   <div className="bg-white/70 p-5 rounded-2xl border border-white shadow-sm space-y-2.5">
                     <h4 className="font-extrabold text-blue-900 border-b border-blue-100/50 pb-2.5 text-xs uppercase tracking-widest">Rincian Data Warga</h4>
                     <div className="grid grid-cols-3 gap-1"><span className="text-blue-900/50 text-xs font-bold">Nama</span><span className="col-span-2 font-black text-blue-900">: {suratReview.nama}</span></div>
@@ -507,6 +540,7 @@ export default function DashboardRW() {
                     <div className="grid grid-cols-3 gap-1 bg-cyan-50/50 p-3 rounded-xl border border-cyan-100/50 mt-2"><span className="text-cyan-800 font-extrabold text-xs">Keperluan</span><span className="col-span-2 font-black text-blue-900">: {suratReview.keperluan}</span></div>
                   </div>
 
+                  {/* FOTO KTP & KK */}
                   <div className="bg-white/70 p-5 rounded-2xl border border-white shadow-sm space-y-4">
                     <h4 className="font-extrabold text-blue-900 border-b border-blue-100/50 pb-2.5 text-xs uppercase tracking-widest">Dokumen Lampiran</h4>
                     <div className="grid grid-cols-2 gap-4">
@@ -527,6 +561,28 @@ export default function DashboardRW() {
                         )}
                       </div>
                     </div>
+                    
+                    {/* DOKUMEN LAINNYA */}
+                    {suratReview.dokumenLainnya && suratReview.dokumenLainnya.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-blue-100/50">
+                        <p className="text-[10px] font-extrabold text-blue-900/50 mb-3 uppercase tracking-wider">Dokumen Tambahan ({suratReview.dokumenLainnya.length}):</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          {suratReview.dokumenLainnya.map((docItem, idx) => (
+                            <div key={idx} className="relative group flex flex-col items-center">
+                              {docItem.data.startsWith('data:image') ? (
+                                <img src={docItem.data} alt={docItem.name} className="w-full h-32 object-cover rounded-xl border border-white shadow-md mb-2" />
+                              ) : (
+                                <div className="w-full h-32 bg-blue-50/50 flex flex-col items-center justify-center text-xs text-blue-900/50 rounded-xl border border-dashed border-blue-200 font-bold p-2 text-center mb-2">
+                                  <span className="text-3xl mb-2">📄</span>
+                                  <span className="w-full truncate px-2 text-[10px]">{docItem.name}</span>
+                                </div>
+                              )}
+                              <span className="text-[10px] font-bold text-blue-900/60 truncate w-full text-center px-1">{docItem.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (

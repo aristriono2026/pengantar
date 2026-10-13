@@ -279,37 +279,67 @@ export default function DashboardRT() {
                     <div><label className="block font-bold text-blue-900/80 mb-1.5">12. Pekerjaan</label><input type="text" name="pekerjaan" value={formData.pekerjaan} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
                   </div>
 
-                  {/* KOTAK DOKUMEN */}
+                  {/* KOTAK DOKUMEN - DIPERBARUI DENGAN TOMBOL KAMERA & GALERI KHUSUS */}
                   <div className="bg-white/40 p-5 rounded-3xl border border-white/60 shadow-sm space-y-5 text-sm">
                     <h3 className="font-extrabold text-blue-900 border-b border-blue-100/50 pb-3">Dokumen Pendukung (Kamera / File)</h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* DOKUMEN: KTP */}
                       <div className="bg-white/60 p-4 rounded-2xl border border-white">
                         <label className="block font-bold text-blue-900/80 mb-2 text-xs">Foto KTP (Maks. 1 Dokumen)</label>
-                        <input type="file" name="fotoKTP" accept="image/*" capture="environment" onChange={handleFileChange} className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 font-bold cursor-pointer" />
+                        <div className="flex gap-2 mb-3">
+                          <label className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer hover:-translate-y-0.5 transition-all">
+                            📸 Kamera
+                            <input type="file" name="fotoKTP" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
+                          </label>
+                          <label className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all">
+                            📁 Galeri / File
+                            <input type="file" name="fotoKTP" accept="image/*" onChange={handleFileChange} className="hidden" />
+                          </label>
+                        </div>
                         {dokumen.fotoKTP && (
-                          <div className="mt-3 relative inline-block group">
-                            <img src={dokumen.fotoKTP} alt="KTP" className="h-28 object-cover rounded-xl shadow-md border border-white" />
-                            <button type="button" onClick={() => setDokumen(prev => ({...prev, fotoKTP: null}))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                          <div className="relative inline-block group w-full">
+                            <img src={dokumen.fotoKTP} alt="KTP" className="w-full h-32 object-cover rounded-xl shadow-md border border-white" />
+                            <button type="button" onClick={() => setDokumen(prev => ({...prev, fotoKTP: null}))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-7 h-7 text-sm flex items-center justify-center font-bold shadow-lg transition-transform hover:scale-110">✕</button>
                           </div>
                         )}
                       </div>
 
+                      {/* DOKUMEN: KK */}
                       <div className="bg-white/60 p-4 rounded-2xl border border-white">
                         <label className="block font-bold text-blue-900/80 mb-2 text-xs">Foto KK (Maks. 1 Dokumen)</label>
-                        <input type="file" name="fotoKK" accept="image/*" capture="environment" onChange={handleFileChange} className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 font-bold cursor-pointer" />
+                        <div className="flex gap-2 mb-3">
+                          <label className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer hover:-translate-y-0.5 transition-all">
+                            📸 Kamera
+                            <input type="file" name="fotoKK" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
+                          </label>
+                          <label className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all">
+                            📁 Galeri / File
+                            <input type="file" name="fotoKK" accept="image/*" onChange={handleFileChange} className="hidden" />
+                          </label>
+                        </div>
                         {dokumen.fotoKK && (
-                          <div className="mt-3 relative inline-block group">
-                            <img src={dokumen.fotoKK} alt="KK" className="h-28 object-cover rounded-xl shadow-md border border-white" />
-                            <button type="button" onClick={() => setDokumen(prev => ({...prev, fotoKK: null}))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                          <div className="relative inline-block group w-full">
+                            <img src={dokumen.fotoKK} alt="KK" className="w-full h-32 object-cover rounded-xl shadow-md border border-white" />
+                            <button type="button" onClick={() => setDokumen(prev => ({...prev, fotoKK: null}))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-7 h-7 text-sm flex items-center justify-center font-bold shadow-lg transition-transform hover:scale-110">✕</button>
                           </div>
                         )}
                       </div>
                     </div>
 
+                    {/* DOKUMEN: LAINNYA */}
                     <div className="pt-3">
                       <label className="block font-bold text-blue-900/80 mb-2 text-xs">Dokumen Lainnya (Multi-file / PDF / Gambar)</label>
-                      <input type="file" multiple accept="image/*,.pdf" onChange={handleMultiFileChange} className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-cyan-50 file:text-cyan-700 font-bold cursor-pointer" />
+                      <div className="flex gap-2 md:w-1/2 mb-3">
+                          <label className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer hover:-translate-y-0.5 transition-all">
+                            📸 Buka Kamera
+                            <input type="file" multiple accept="image/*" capture="environment" onChange={handleMultiFileChange} className="hidden" />
+                          </label>
+                          <label className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all">
+                            📁 Pilih File
+                            <input type="file" multiple accept="image/*,.pdf" onChange={handleMultiFileChange} className="hidden" />
+                          </label>
+                      </div>
                       
                       {dokumen.dokumenLainnya.length > 0 && (
                         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -321,7 +351,7 @@ export default function DashboardRT() {
                               ) : (
                                 <div className="h-16 bg-blue-50/50 flex items-center justify-center text-[10px] font-black text-blue-300 rounded-lg mb-1.5 border border-dashed border-blue-200">PDF</div>
                               )}
-                              <button type="button" onClick={() => handleHapusDokumenLain(idx)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-1 rounded-lg font-bold text-[10px] transition-colors">Hapus</button>
+                              <button type="button" onClick={() => handleHapusDokumenLain(idx)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-1.5 rounded-lg font-bold text-[10px] transition-colors">Hapus</button>
                             </div>
                           ))}
                         </div>
