@@ -2,15 +2,14 @@ import { useState } from 'react'
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom'
 import DashboardRT from './DashboardRT'
 import DashboardRW from './DashboardRW'
-import DashboardAdmin from './DashboardAdmin' // Tambahan untuk halaman Admin
+import DashboardAdmin from './DashboardAdmin'
 import CetakSurat from './CetakSurat'
 import { auth, db } from './firebase'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 
-// Komponen Halaman Login (Tampilan dipertahankan, Logika diubah ke Firebase)
 function Login() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('') // Diubah jadi username
   const [password, setPassword] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,20 +21,22 @@ function Login() {
     setLoading(true)
 
     try {
-      // 1. Proses Login menggunakan Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // TRIK: Jika yang diketik tidak mengandung "@", tambahkan "@rw05.com" otomatis
+      let emailLogin = username.trim().toLowerCase();
+      if (!emailLogin.includes('@')) {
+        emailLogin = emailLogin + '@rw05.com';
+      }
+
+      const userCredential = await signInWithEmailAndPassword(auth, emailLogin, password);
       const user = userCredential.user;
 
-      // 2. Ambil data Role dari database Firestore (koleksi "users")
       const userDoc = await getDoc(doc(db, "users", user.uid));
       
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        // Simpan role ke localStorage agar Dasbor mengenali hak aksesnya
         localStorage.setItem("userRole", userData.role);
         if (userData.rt_number) localStorage.setItem("currentUserRT", userData.rt_number);
 
-        // 3. Arahkan rute sesuai jabatan (Role)
         if (userData.role === 'Admin') navigate('/admin');
         else if (userData.role === 'RT') navigate('/rt');
         else if (userData.role === 'RW') navigate('/rw');
@@ -45,7 +46,7 @@ function Login() {
         auth.signOut();
       }
     } catch (error) {
-      setErrorMsg("Login Gagal! Pastikan Email dan Password benar.");
+      setErrorMsg("Login Gagal! Pastikan Username dan Password benar.");
     } finally {
       setLoading(false);
     }
@@ -55,17 +56,15 @@ function Login() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:p-8">
       <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row w-full max-w-4xl border border-gray-100">
         
-        {/* Kolom Kiri - Desain Banner */}
         <div className="bg-blue-600 md:w-1/2 p-8 md:p-12 text-white flex flex-col justify-center items-center text-center relative">
           <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-6 backdrop-blur-sm border border-white/30 shadow-lg">
             <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
           </div>
-          <h1 className="text-3xl font-bold mb-3 tracking-wide">E-Surat Warga</h1>
-          <p className="text-blue-100 mb-8 text-sm md:text-base leading-relaxed">Sistem Terintegrasi Pelayanan Formulir Surat Pengantar Tingkat RT/RW</p>
+          <h1 className="text-3xl font-bold mb-3 tracking-wide">E-PENGANTAR RW.05</h1>
+          <p className="text-blue-100 mb-8 text-sm md:text-base leading-relaxed">Sistem Terintegrasi Pelayanan Formulir Surat Pengantar Tingkat RT/RW 05</p>
           <div className="mt-auto"><p className="text-sm font-medium text-white bg-blue-700/50 px-4 py-2 rounded-full border border-blue-500/50">Kelurahan Tambakreja, Cilacap Selatan</p></div>
         </div>
 
-        {/* Kolom Kanan - Form Login */}
         <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Selamat Datang</h2>
@@ -80,13 +79,13 @@ function Login() {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Email Akun</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
               <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all text-gray-800"
-                placeholder="Contoh: admin@rw05.com" 
+                placeholder="Contoh: admin atau RT04" 
                 required
               />
             </div>
@@ -113,22 +112,14 @@ function Login() {
   )
 }
 
-// Pengatur Rute Utama (Router)
 export default function App() {
   return (
     <Routes>
-      {/* Rute Login */}
       <Route path="/" element={<Login />} />
-      
-      {/* Rute Dasbor Sesuai Hak Akses */}
       <Route path="/admin" element={<DashboardAdmin />} />
       <Route path="/rt" element={<DashboardRT />} />
       <Route path="/rw" element={<DashboardRW />} />
-      
-      {/* Rute Cetak Surat */}
       <Route path="/cetak" element={<CetakSurat />} />
-
-      {/* Jika ada URL yang tidak dikenali, arahkan kembali ke Login */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   )

@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { db, auth } from './firebase'
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { updatePassword, signOut } from 'firebase/auth'
+
+const ExternalLinkIcon = () => (
+  <svg className="w-3 h-3 text-current opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+);
 
 export default function DashboardRT() {
   const navigate = useNavigate()
-  const currentUserRT = localStorage.getItem("currentUserRT") || "04"; // RT akun yang sedang login
+  const currentUserRT = localStorage.getItem("currentUserRT") || "04"; 
 
   const [activeMenu, setActiveMenu] = useState('beranda') 
   const [cariNik, setCariNik] = useState('')
@@ -29,7 +33,6 @@ export default function DashboardRT() {
   
   const [dokumen, setDokumen] = useState({ fotoKTP: null, fotoKK: null, dokumenLainnya: [] })
 
-  // State untuk fitur Ganti Password
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isChangingPassword, setIsChangingPassword] = useState(false)
@@ -67,52 +70,29 @@ export default function DashboardRT() {
         const rtWarga = String(wargaDitemukan.rt || '').trim();
         if (rtWarga !== currentUserRT && rtWarga !== "4" && rtWarga !== "004") {
           alert(`Akses Ditolak! NIK ${nikBersih} terdaftar di RT ${rtWarga}, bukan warga RT ${currentUserRT}.`);
-          setStatusPencarian(null);
-          setCariNik('');
-          return;
+          setStatusPencarian(null); setCariNik(''); return;
         }
 
         setStatusPencarian('ketemu')
-        setFormData({ 
-          ...wargaDitemukan, 
-          rt: currentUserRT,
-          rw: wargaDitemukan.rw || '05',
-          keperluan: '', 
-          berlakuMulai: setTanggalBerlaku(), 
-          keterangan: '' 
-        })
+        setFormData({ ...wargaDitemukan, rt: currentUserRT, rw: wargaDitemukan.rw || '05', keperluan: '', berlakuMulai: setTanggalBerlaku(), keterangan: '' })
       } else {
         setStatusPencarian('baru')
-        setFormData({ 
-          nik: nikBersih, nama: '', jenis_kelamin: 'Lk', tempat_lahir: '', tanggal_lahir: '', 
-          alamat: '', rt: currentUserRT, rw: '05', status_keluarga: '', 
-          status_perkawinan: 'Belum Kawin', agama: '', pekerjaan: '', keperluan: '', berlakuMulai: setTanggalBerlaku(), keterangan: '' 
-        })
+        setFormData({ nik: nikBersih, nama: '', jenis_kelamin: 'Lk', tempat_lahir: '', tanggal_lahir: '', alamat: '', rt: currentUserRT, rw: '05', status_keluarga: '', status_perkawinan: 'Belum Kawin', agama: '', pekerjaan: '', keperluan: '', berlakuMulai: setTanggalBerlaku(), keterangan: '' })
       }
-    } catch (error) {
-      alert("Terjadi kesalahan koneksi database.");
-    }
+    } catch (error) { alert("Terjadi kesalahan koneksi database."); }
   }
 
   const handleEdit = (surat) => {
     setActiveMenu('beranda'); setEditModeId(surat.id); setStatusPencarian('edit');
     setFormData({ ...surat, rt: currentUserRT })
-    setDokumen({ 
-      fotoKTP: surat.fotoKTP || null, 
-      fotoKK: surat.fotoKK || null, 
-      dokumenLainnya: surat.dokumenLainnya || [] 
-    })
+    setDokumen({ fotoKTP: surat.fotoKTP || null, fotoKK: surat.fotoKK || null, dokumenLainnya: surat.dokumenLainnya || [] })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleHapusSurat = async (idSurat, namaWarga) => {
-    if (window.confirm(`Apakah Anda yakin ingin menghapus pengajuan surat yang ditolak untuk warga atas nama "${namaWarga}"?`)) {
-      try {
-        await deleteDoc(doc(db, "surat", idSurat));
-        alert("Pengajuan surat yang ditolak berhasil dihapus dari riwayat.");
-      } catch (error) {
-        alert("Gagal menghapus surat: " + error.message);
-      }
+    if (window.confirm(`Hapus pengajuan surat ditolak atas nama "${namaWarga}"?`)) {
+      try { await deleteDoc(doc(db, "surat", idSurat)); alert("Berhasil dihapus."); } 
+      catch (error) { alert("Gagal menghapus: " + error.message); }
     }
   };
 
@@ -122,9 +102,7 @@ export default function DashboardRT() {
     const { name, files } = e.target;
     if (files && files[0]) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setDokumen(prev => ({ ...prev, [name]: reader.result }));
-      };
+      reader.onloadend = () => { setDokumen(prev => ({ ...prev, [name]: reader.result })); };
       reader.readAsDataURL(files[0]);
     }
   };
@@ -140,10 +118,7 @@ export default function DashboardRT() {
         newFilesBase64.push({ name: file.name, data: reader.result });
         loadedCount++;
         if (loadedCount === files.length) {
-          setDokumen(prev => ({
-            ...prev,
-            dokumenLainnya: [...prev.dokumenLainnya, ...newFilesBase64]
-          }));
+          setDokumen(prev => ({ ...prev, dokumenLainnya: [...prev.dokumenLainnya, ...newFilesBase64] }));
         }
       };
       reader.readAsDataURL(file);
@@ -151,35 +126,24 @@ export default function DashboardRT() {
   };
 
   const handleHapusDokumenLain = (index) => {
-    setDokumen(prev => ({
-      ...prev,
-      dokumenLainnya: prev.dokumenLainnya.filter((_, i) => i !== index)
-    }));
+    setDokumen(prev => ({ ...prev, dokumenLainnya: prev.dokumenLainnya.filter((_, i) => i !== index) }));
   };
 
   const handleSubmitDraft = async (e) => {
     e.preventDefault()
     const tglFormated = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const ttlGabungan = `${formData.tempat_lahir || ''}, ${formData.tanggal_lahir || ''}`;
-
     const payloadSurat = {
       rt_pengaju: `RT ${currentUserRT}`, 
-      ...formData, 
-      rt: currentUserRT, 
-      ttl: ttlGabungan,
-      fotoKTP: dokumen.fotoKTP,
-      fotoKK: dokumen.fotoKK,
-      dokumenLainnya: dokumen.dokumenLainnya,
-      status: "Draft",
-      tanggal: tglFormated,
-      timestamp: Date.now()
+      ...formData, rt: currentUserRT, 
+      ttl: `${formData.tempat_lahir || ''}, ${formData.tanggal_lahir || ''}`,
+      fotoKTP: dokumen.fotoKTP, fotoKK: dokumen.fotoKK, dokumenLainnya: dokumen.dokumenLainnya,
+      status: "Draft", tanggal: tglFormated, timestamp: Date.now()
     }
 
     try {
       if (editModeId) {
         await updateDoc(doc(db, "surat", editModeId), payloadSurat);
-        alert(`Data berhasil diperbaiki ke database.`);
-        setEditModeId(null)
+        alert(`Data berhasil diperbaiki.`); setEditModeId(null)
       } else {
         const tahunIni = new Date().getFullYear()
         const suratTahunIni = riwayatSurat.filter(s => s.tanggal && s.tanggal.includes(tahunIni))
@@ -194,151 +158,54 @@ export default function DashboardRT() {
   const handleKirimKeRW = async () => {
     try {
       await updateDoc(doc(db, "surat", suratReview.id), { status: "Menunggu RW" });
-      setSuratReview(null); alert(`Surat resmi dikirim ke antrean RW.`);
-    } catch (error) { alert("Gagal mengirim surat ke RW."); }
+      setSuratReview(null); alert(`Surat dikirim ke RW.`);
+    } catch (error) { alert("Gagal mengirim surat."); }
   }
 
   const handleDownloadRekap = () => {
-    if (!tglMulai || !tglSelesai) return alert("Pilih Tanggal Mulai dan Tanggal Selesai terlebih dahulu!");
+    if (!tglMulai || !tglSelesai) return alert("Pilih Tanggal Mulai dan Selesai!");
     const startTimestamp = new Date(tglMulai).setHours(0, 0, 0, 0);
     const endTimestamp = new Date(tglSelesai).setHours(23, 59, 59, 999);
-
     const dataFilter = riwayatSurat.filter(s => s.timestamp >= startTimestamp && s.timestamp <= endTimestamp);
-    if (dataFilter.length === 0) return alert("Tidak ada surat pada rentang tanggal tersebut.");
+    if (dataFilter.length === 0) return alert("Tidak ada surat pada rentang ini.");
 
-    const headers = ["Tanggal", "No Surat", "NIK", "Nama Pemohon", "Keperluan", "Status"];
-    const csvRows = [headers.join(";")];
-    dataFilter.forEach(s => {
-      csvRows.push([`"${s.tanggal}"`, `"${s.nomor_surat}"`, `="${s.nik}"`, `"${s.nama}"`, `"${s.keperluan}"`, `"${s.status}"`].join(";"));
-    });
-
-    const csvContent = "\uFEFF" + csvRows.join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Rekap_Surat_RT${currentUserRT}_${tglMulai}_sd_${tglSelesai}.csv`;
-    link.click();
+    const csvRows = [["Tanggal", "No Surat", "NIK", "Nama Pemohon", "Keperluan", "Status"].join(";")];
+    dataFilter.forEach(s => csvRows.push([`"${s.tanggal}"`, `"${s.nomor_surat}"`, `="${s.nik}"`, `"${s.nama}"`, `"${s.keperluan}"`, `"${s.status}"`].join(";")));
+    
+    const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Rekap_RT${currentUserRT}_${tglMulai}.csv`; link.click();
   }
 
   const handleCetakPDFRekap = () => {
-    if (!tglMulai || !tglSelesai) return alert("Pilih Tanggal Mulai dan Tanggal Selesai terlebih dahulu!");
+    if (!tglMulai || !tglSelesai) return alert("Pilih Tanggal Mulai dan Selesai!");
     const startTimestamp = new Date(tglMulai).setHours(0, 0, 0, 0);
     const endTimestamp = new Date(tglSelesai).setHours(23, 59, 59, 999);
-
     const dataFilter = riwayatSurat.filter(s => s.timestamp >= startTimestamp && s.timestamp <= endTimestamp);
-    if (dataFilter.length === 0) return alert("Tidak ada data surat pada rentang tanggal tersebut.");
+    if (dataFilter.length === 0) return alert("Tidak ada data.");
 
     const printWindow = window.open('', '_blank');
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html lang="id">
-      <head>
-        <meta charset="UTF-8">
-        <title>Rekapitulasi Laporan Surat RT ${currentUserRT}</title>
-        <style>
-          @page { size: 210mm 330mm; margin: 15mm; }
-          body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; font-size: 11pt; }
-          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10mm; margin-bottom: 20mm; }
-          .header h2, .header h3 { margin: 2px 0; }
-          .info { margin-bottom: 15mm; font-size: 10pt; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10mm; }
-          table, th, td { border: 1px solid #000; }
-          th, td { padding: 8mm 10mm; text-align: left; font-size: 10pt; }
-          th { background-color: #f2f2f2 !important; -webkit-print-color-adjust: exact; }
-          .footer { margin-top: 40mm; float: right; text-align: center; font-size: 10pt; }
-          .sign-space { height: 60mm; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h3>PEMERINTAH KABUPATEN CILACAP</h3>
-          <h3>KECAMATAN CILACAP SELATAN - KELURAHAN TAMBAKREJA</h3>
-          <h2>REKAPITULASI PERMOHONAN SURAT PENGANTAR RT ${currentUserRT}</h2>
-          <p style="font-size: 9pt; margin: 5mm 0;">Periode: ${tglMulai} s/d ${tglSelesai}</p>
-        </div>
-        <div class="info"><p><b>Total Permohonan:</b> ${dataFilter.length} Surat</p></div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 5%;">No</th>
-              <th style="width: 15%;">Tanggal</th>
-              <th style="width: 25%;">Nomor Surat</th>
-              <th style="width: 20%;">Nama Pemohon</th>
-              <th style="width: 25%;">Keperluan</th>
-              <th style="width: 10%;">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${dataFilter.map((s, index) => `
-              <tr>
-                <td style="text-align: center;">${index + 1}</td>
-                <td>${s.tanggal}</td>
-                <td>${s.nomor_surat || '-'}</td>
-                <td><b>${s.nama}</b><br><span style="font-size: 8pt; color: #555;">NIK: ${s.nik}</span></td>
-                <td>${s.keperluan}</td>
-                <td style="text-align: center;"><b>${s.status}</b></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <div class="footer">
-          <div>
-            <p>Tambakreja, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
-            <p>Ketua RT ${currentUserRT} RW 05</p>
-            <div class="sign-space"></div>
-            <p><b>( .......................................... )</b></p>
-          </div>
-        </div>
-        <script>window.onload = function() { window.print(); window.close(); }</script>
-      </body>
-      </html>
-    `;
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    const htmlContent = `<!DOCTYPE html><html lang="id"><head><title>Rekap RT ${currentUserRT}</title><style>@page { size: 210mm 330mm; margin: 15mm; } body { font-family: Arial; font-size: 11pt; } .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10mm; margin-bottom: 20mm; } table { width: 100%; border-collapse: collapse; margin-top: 10mm; } th, td { border: 1px solid #000; padding: 8mm; text-align: left; } th { background-color: #f2f2f2 !important; } .footer { margin-top: 40mm; float: right; text-align: center; }</style></head><body><div class="header"><h3>PEMERINTAH KABUPATEN CILACAP</h3><h2>REKAPITULASI SURAT RT ${currentUserRT}</h2><p>Periode: ${tglMulai} s/d ${tglSelesai}</p></div><table><thead><tr><th>No</th><th>Tanggal</th><th>Nomor Surat</th><th>Nama Pemohon</th><th>Keperluan</th><th>Status</th></tr></thead><tbody>${dataFilter.map((s, i) => `<tr><td style="text-align: center;">${i + 1}</td><td>${s.tanggal}</td><td>${s.nomor_surat || '-'}</td><td><b>${s.nama}</b><br><span style="font-size:8pt">NIK: ${s.nik}</span></td><td>${s.keperluan}</td><td style="text-align: center;"><b>${s.status}</b></td></tr>`).join('')}</tbody></table><div class="footer"><p>Tambakreja, ${new Date().toLocaleDateString('id-ID')}</p><p>Ketua RT ${currentUserRT}</p><div style="height:40mm"></div><p><b>( .......................... )</b></p></div><script>window.onload=function(){window.print();window.close();}</script></body></html>`;
+    printWindow.document.write(htmlContent); printWindow.document.close();
   }
 
-  // FUNGSI GANTI PASSWORD
   const handleGantiPassword = async (e) => {
     e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      return alert("Password baru dan konfirmasi password tidak cocok!");
-    }
-    if (newPassword.length < 6) {
-      return alert("Password minimal 6 karakter!");
-    }
-
+    if (newPassword !== confirmPassword) return alert("Password tidak cocok!");
+    if (newPassword.length < 6) return alert("Minimal 6 karakter!");
     try {
       setIsChangingPassword(true);
       const user = auth.currentUser;
       if (user) {
         await updatePassword(user, newPassword);
-        alert("Password berhasil diubah! Silakan login kembali dengan password baru.");
-        handleLogout();
-      } else {
-        alert("Sesi tidak valid. Silakan logout dan login ulang.");
-      }
-    } catch (error) {
-      if (error.code === 'auth/requires-recent-login') {
-        alert("Sesi Anda sudah terlalu lama. Demi keamanan, silakan logout dan login kembali sebelum mengubah password.");
-      } else {
-        alert("Gagal mengubah password: " + error.message);
-      }
-    } finally {
-      setIsChangingPassword(false);
-      setNewPassword('');
-      setConfirmPassword('');
-    }
+        await setDoc(doc(db, "users", user.uid), { password_plain: newPassword }, { merge: true });
+        alert("Password diubah! Silakan login ulang."); handleLogout();
+      } else alert("Sesi tidak valid.");
+    } catch (error) { alert("Gagal mengubah: " + error.message); } 
+    finally { setIsChangingPassword(false); setNewPassword(''); setConfirmPassword(''); }
   };
 
-  // FUNGSI LOGOUT
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      localStorage.clear();
-      navigate('/');
-    } catch (error) {
-      console.error("Logout gagal: ", error);
-    }
+    await signOut(auth); localStorage.clear(); navigate('/');
   };
 
   const filteredRiwayat = riwayatSurat.filter(surat => {
@@ -348,100 +215,113 @@ export default function DashboardRT() {
   })
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 md:pb-10 relative">
-      <nav className="hidden md:flex bg-blue-600 text-white p-4 shadow-md justify-between items-center sticky top-0 z-40">
-        <div><h1 className="text-xl font-bold">Dasbor Ketua RT</h1><p className="text-xs text-blue-100">Kel. Tambakreja - Cilacap Selatan</p></div>
-        <div className="flex gap-4 items-center">
-          <button onClick={() => setActiveMenu('beranda')} className={`font-bold pb-1 ${activeMenu === 'beranda' ? 'border-b-2 border-white' : 'text-blue-200'}`}>Beranda</button>
-          <button onClick={() => setActiveMenu('arsip')} className={`font-bold pb-1 ${activeMenu === 'arsip' ? 'border-b-2 border-white' : 'text-blue-200'}`}>Arsip & Laporan</button>
-          <button onClick={() => setActiveMenu('profil')} className={`font-bold pb-1 ${activeMenu === 'profil' ? 'border-b-2 border-white' : 'text-blue-200'}`}>Profil</button>
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-white to-blue-50 font-sans text-gray-800 pb-20 md:pb-10 flex flex-col relative">
+      
+      {/* NAVBAR DESKTOP GLASSMORPHISM */}
+      <nav className="hidden md:flex bg-white/70 backdrop-blur-xl border-b border-white/50 text-blue-900 p-4 shadow-[0_4px_30px_rgb(0,0,0,0.03)] justify-between items-center sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 font-black text-lg">
+            {currentUserRT}
+          </div>
+          <div><h1 className="text-lg font-extrabold tracking-tight">Dasbor Ketua RT</h1><p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">RW 05 Tambakreja</p></div>
+        </div>
+        <div className="flex gap-2 p-1 bg-blue-50/50 rounded-2xl border border-blue-100/50 backdrop-blur-sm">
+          <button onClick={() => setActiveMenu('beranda')} className={`px-5 py-2 font-bold text-sm rounded-xl transition-all ${activeMenu === 'beranda' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Beranda</button>
+          <button onClick={() => setActiveMenu('arsip')} className={`px-5 py-2 font-bold text-sm rounded-xl transition-all ${activeMenu === 'arsip' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Arsip & Laporan</button>
+          <button onClick={() => setActiveMenu('profil')} className={`px-5 py-2 font-bold text-sm rounded-xl transition-all ${activeMenu === 'profil' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Profil</button>
         </div>
       </nav>
 
-      <div className="md:hidden bg-blue-600 text-white p-4 shadow-sm sticky top-0 z-40">
-        <h1 className="text-lg font-bold">Dasbor Ketua RT {currentUserRT}</h1>
-        <p className="text-[10px] text-blue-100 uppercase tracking-widest">{activeMenu}</p>
+      {/* NAVBAR MOBILE */}
+      <div className="md:hidden bg-white/80 backdrop-blur-xl text-blue-900 p-4 shadow-sm border-b border-blue-100/50 sticky top-0 z-40 flex items-center gap-3">
+         <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white shadow-md font-black text-sm">{currentUserRT}</div>
+         <div>
+           <h1 className="text-base font-extrabold tracking-tight">Dasbor RT {currentUserRT}</h1>
+           <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{activeMenu}</p>
+         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto mt-6 px-4 space-y-6">
+      <div className="flex-1 max-w-6xl w-full mx-auto mt-6 px-4 space-y-8 relative z-10">
+        
         {activeMenu === 'beranda' && (
           <div className="animate-fade-in-up">
-            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
-              <h2 className="text-lg font-bold text-gray-800 mb-1">Pengajuan Surat (Khusus Warga RT {currentUserRT})</h2>
-              <p className="text-xs text-gray-500 mb-4">Masukkan NIK warga. Sistem otomatis memvalidasi apakah warga tersebut terdaftar di RT {currentUserRT}.</p>
+            <div className="bg-white/60 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 mb-8">
+              <h2 className="text-xl font-extrabold text-blue-900 mb-2">Pengajuan Surat Pengantar</h2>
+              <p className="text-sm text-blue-900/60 font-medium mb-6">Sistem otomatis memvalidasi apakah NIK tersebut terdaftar di RT {currentUserRT}.</p>
               
               <form onSubmit={handleCari} className="flex flex-col sm:flex-row gap-3">
-                <input type="text" value={cariNik} onChange={(e) => setCariNik(e.target.value)} placeholder={`Masukkan 16 Digit NIK Warga RT ${currentUserRT}...`} className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" maxLength="16" required={!editModeId} disabled={editModeId} />
-                <button type="submit" disabled={editModeId} className={`font-bold py-3 px-6 rounded-xl transition-all ${editModeId ? 'bg-gray-300 text-gray-500' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'}`}>Cari Data</button>
+                <input type="text" value={cariNik} onChange={(e) => setCariNik(e.target.value)} placeholder={`Ketik 16 Digit NIK Warga...`} className="flex-1 px-5 py-4 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none shadow-inner transition-all font-semibold" maxLength="16" required={!editModeId} disabled={editModeId} />
+                <button type="submit" disabled={editModeId} className={`font-bold py-4 px-8 rounded-2xl transition-all shadow-lg ${editModeId ? 'bg-gray-200 text-gray-400 shadow-none' : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-blue-500/30 hover:-translate-y-0.5'}`}>Cari & Validasi</button>
               </form>
             </div>
 
             {statusPencarian && (
-              <div className="bg-white p-5 md:p-8 rounded-2xl shadow-sm border border-gray-100 border-t-4 border-t-blue-500">
-                <div className="flex justify-between items-center border-b pb-4 mb-5">
-                  <h2 className="text-lg md:text-xl font-bold text-gray-800">{editModeId ? "Edit Data" : "Form Isian Data Warga"}</h2>
-                  {editModeId && <button onClick={() => {setEditModeId(null); setStatusPencarian(null)}} className="text-red-500 font-bold text-sm">✖ Batal</button>}
+              <div className="bg-white/60 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-white/60">
+                <div className="flex justify-between items-center border-b border-blue-100/50 pb-5 mb-6">
+                  <h2 className="text-xl font-extrabold text-blue-900">{editModeId ? "Edit Data Pengajuan" : "Formulir Data Warga"}</h2>
+                  {editModeId && <button onClick={() => {setEditModeId(null); setStatusPencarian(null)}} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-xl font-bold text-xs transition-all shadow-sm">✖ Batal Edit</button>}
                 </div>
                 
-                <form onSubmit={handleSubmitDraft} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div className="md:col-span-2"><label className="block font-semibold mb-1">1. NIK</label><input type="text" name="nik" value={formData.nik} readOnly className="w-full p-2.5 bg-gray-100 border border-gray-300 rounded-lg font-bold" /></div>
-                    <div className="md:col-span-2"><label className="block font-semibold mb-1">2. Nama Lengkap</label><input type="text" name="nama" value={formData.nama} onChange={handleChange} required className="w-full p-2.5 border border-gray-300 rounded-lg" /></div>
-                    <div><label className="block font-semibold mb-1">3. Jenis Kelamin</label><select name="jenis_kelamin" value={formData.jenis_kelamin} onChange={handleChange} className="w-full p-2.5 border border-gray-300 rounded-lg"><option value="Lk">Laki-Laki</option><option value="Pr">Perempuan</option></select></div>
-                    <div><label className="block font-semibold mb-1">4. Tempat Lahir</label><input type="text" name="tempat_lahir" value={formData.tempat_lahir} onChange={handleChange} required className="w-full p-2.5 border border-gray-300 rounded-lg" /></div>
-                    <div><label className="block font-semibold mb-1">5. Tanggal Lahir</label><input type="text" name="tanggal_lahir" value={formData.tanggal_lahir} onChange={handleChange} required className="w-full p-2.5 border border-gray-300 rounded-lg" placeholder="Cth: 17 Agustus 1990" /></div>
-                    <div className="md:col-span-2"><label className="block font-semibold mb-1">6. Alamat (Jalan)</label><input type="text" name="alamat" value={formData.alamat} onChange={handleChange} required className="w-full p-2.5 border border-gray-300 rounded-lg" /></div>
-                    <div><label className="block font-semibold mb-1">7. RT</label><input type="text" name="rt" value={formData.rt} readOnly className="w-full p-2.5 bg-gray-100 border border-gray-300 rounded-lg font-bold text-blue-700" /></div>
-                    <div><label className="block font-semibold mb-1">8. RW</label><input type="text" name="rw" value={formData.rw} onChange={handleChange} required className="w-full p-2.5 border border-gray-300 rounded-lg" /></div>
-                    
-                    <div><label className="block font-semibold mb-1">9. Status dalam Keluarga</label><input type="text" name="status_keluarga" value={formData.status_keluarga} onChange={handleChange} required className="w-full p-2.5 border border-gray-300 rounded-lg" placeholder="Cth: Kepala Keluarga / Istri / Anak" /></div>
-                    <div><label className="block font-semibold mb-1">10. Status Perkawinan</label><select name="status_perkawinan" value={formData.status_perkawinan} onChange={handleChange} className="w-full p-2.5 border border-gray-300 rounded-lg"><option value="Belum Kawin">Belum Kawin</option><option value="Kawin">Kawin</option><option value="Duda">Duda</option><option value="Janda">Janda</option></select></div>
-                    <div><label className="block font-semibold mb-1">11. Agama</label><input type="text" name="agama" value={formData.agama} onChange={handleChange} required className="w-full p-2.5 border border-gray-300 rounded-lg" placeholder="Cth: Islam" /></div>
-                    <div><label className="block font-semibold mb-1">12. Pekerjaan</label><input type="text" name="pekerjaan" value={formData.pekerjaan} onChange={handleChange} required className="w-full p-2.5 border border-gray-300 rounded-lg" /></div>
+                <form onSubmit={handleSubmitDraft} className="space-y-6">
+                  {/* GRID FORM - GLASSMORPHISM INPUTS */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+                    <div className="md:col-span-2"><label className="block font-bold text-blue-900/80 mb-1.5">1. NIK</label><input type="text" name="nik" value={formData.nik} readOnly className="w-full p-3.5 bg-blue-50/50 border border-blue-100/50 rounded-2xl font-bold text-blue-900" /></div>
+                    <div className="md:col-span-2"><label className="block font-bold text-blue-900/80 mb-1.5">2. Nama Lengkap</label><input type="text" name="nama" value={formData.nama} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">3. Jenis Kelamin</label><select name="jenis_kelamin" value={formData.jenis_kelamin} onChange={handleChange} className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none"><option value="Lk">Laki-Laki</option><option value="Pr">Perempuan</option></select></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">4. Tempat Lahir</label><input type="text" name="tempat_lahir" value={formData.tempat_lahir} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">5. Tanggal Lahir</label><input type="text" name="tanggal_lahir" value={formData.tanggal_lahir} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" placeholder="Cth: 17 Agustus 1990" /></div>
+                    <div className="md:col-span-2"><label className="block font-bold text-blue-900/80 mb-1.5">6. Alamat (Jalan)</label><input type="text" name="alamat" value={formData.alamat} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">7. RT</label><input type="text" name="rt" value={formData.rt} readOnly className="w-full p-3.5 bg-blue-50/50 border border-blue-100/50 rounded-2xl font-bold text-blue-600" /></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">8. RW</label><input type="text" name="rw" value={formData.rw} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">9. Status dalam Keluarga</label><input type="text" name="status_keluarga" value={formData.status_keluarga} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">10. Status Perkawinan</label><select name="status_perkawinan" value={formData.status_perkawinan} onChange={handleChange} className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none"><option value="Belum Kawin">Belum Kawin</option><option value="Kawin">Kawin</option><option value="Duda">Duda</option><option value="Janda">Janda</option></select></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">11. Agama</label><input type="text" name="agama" value={formData.agama} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
+                    <div><label className="block font-bold text-blue-900/80 mb-1.5">12. Pekerjaan</label><input type="text" name="pekerjaan" value={formData.pekerjaan} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-4 text-sm">
-                    <h3 className="font-bold text-gray-700 border-b pb-2">Unggah Dokumen Pendukung Warga (Kamera atau Folder PC/HP)</h3>
+                  {/* KOTAK DOKUMEN */}
+                  <div className="bg-white/40 p-5 rounded-3xl border border-white/60 shadow-sm space-y-5 text-sm">
+                    <h3 className="font-extrabold text-blue-900 border-b border-blue-100/50 pb-3">Dokumen Pendukung (Kamera / File)</h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block font-semibold mb-1 text-xs text-gray-700">Foto KTP (Maks. 1 Dokumen)</label>
-                        <input type="file" name="fotoKTP" accept="image/*" capture="environment" onChange={handleFileChange} className="w-full text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-100 file:text-blue-700 font-semibold cursor-pointer" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="bg-white/60 p-4 rounded-2xl border border-white">
+                        <label className="block font-bold text-blue-900/80 mb-2 text-xs">Foto KTP (Maks. 1 Dokumen)</label>
+                        <input type="file" name="fotoKTP" accept="image/*" capture="environment" onChange={handleFileChange} className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 font-bold cursor-pointer" />
                         {dokumen.fotoKTP && (
-                          <div className="mt-2 relative inline-block">
-                            <img src={dokumen.fotoKTP} alt="Preview KTP" className="h-28 object-cover rounded-lg border shadow-sm" />
-                            <button type="button" onClick={() => setDokumen(prev => ({...prev, fotoKTP: null}))} className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold">×</button>
+                          <div className="mt-3 relative inline-block group">
+                            <img src={dokumen.fotoKTP} alt="KTP" className="h-28 object-cover rounded-xl shadow-md border border-white" />
+                            <button type="button" onClick={() => setDokumen(prev => ({...prev, fotoKTP: null}))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                           </div>
                         )}
                       </div>
 
-                      <div>
-                        <label className="block font-semibold mb-1 text-xs text-gray-700">Foto KK (Maks. 1 Dokumen)</label>
-                        <input type="file" name="fotoKK" accept="image/*" capture="environment" onChange={handleFileChange} className="w-full text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-100 file:text-blue-700 font-semibold cursor-pointer" />
+                      <div className="bg-white/60 p-4 rounded-2xl border border-white">
+                        <label className="block font-bold text-blue-900/80 mb-2 text-xs">Foto KK (Maks. 1 Dokumen)</label>
+                        <input type="file" name="fotoKK" accept="image/*" capture="environment" onChange={handleFileChange} className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 font-bold cursor-pointer" />
                         {dokumen.fotoKK && (
-                          <div className="mt-2 relative inline-block">
-                            <img src={dokumen.fotoKK} alt="Preview KK" className="h-28 object-cover rounded-lg border shadow-sm" />
-                            <button type="button" onClick={() => setDokumen(prev => ({...prev, fotoKK: null}))} className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold">×</button>
+                          <div className="mt-3 relative inline-block group">
+                            <img src={dokumen.fotoKK} alt="KK" className="h-28 object-cover rounded-xl shadow-md border border-white" />
+                            <button type="button" onClick={() => setDokumen(prev => ({...prev, fotoKK: null}))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-gray-200">
-                      <label className="block font-semibold mb-1 text-xs text-gray-700">Dokumen Lainnya (Jumlah File Tidak Dibatasi / Multi-file)</label>
-                      <input type="file" multiple accept="image/*,.pdf" onChange={handleMultiFileChange} className="w-full text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-green-100 file:text-green-700 font-semibold cursor-pointer" />
+                    <div className="pt-3">
+                      <label className="block font-bold text-blue-900/80 mb-2 text-xs">Dokumen Lainnya (Multi-file / PDF / Gambar)</label>
+                      <input type="file" multiple accept="image/*,.pdf" onChange={handleMultiFileChange} className="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-cyan-50 file:text-cyan-700 font-bold cursor-pointer" />
                       
                       {dokumen.dokumenLainnya.length > 0 && (
-                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
                           {dokumen.dokumenLainnya.map((docItem, idx) => (
-                            <div key={idx} className="p-2 bg-white border rounded-lg shadow-sm text-xs relative flex flex-col justify-between">
-                              <span className="truncate font-semibold text-gray-700 mb-1">{docItem.name || `Dokumen ${idx + 1}`}</span>
+                            <div key={idx} className="p-2 bg-white/70 border border-white rounded-xl shadow-sm relative group flex flex-col justify-between">
+                              <span className="truncate font-bold text-blue-900/70 mb-1.5 text-[10px] px-1">{docItem.name || `Dokumen ${idx + 1}`}</span>
                               {docItem.data.startsWith('data:image') ? (
-                                <img src={docItem.data} alt="Lampiran" className="h-16 object-cover rounded mb-1" />
+                                <img src={docItem.data} alt="Lampiran" className="h-16 object-cover rounded-lg mb-1.5" />
                               ) : (
-                                <div className="h-16 bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 rounded mb-1">FILE PDF</div>
+                                <div className="h-16 bg-blue-50/50 flex items-center justify-center text-[10px] font-black text-blue-300 rounded-lg mb-1.5 border border-dashed border-blue-200">PDF</div>
                               )}
-                              <button type="button" onClick={() => handleHapusDokumenLain(idx)} className="bg-red-100 text-red-600 hover:bg-red-200 py-1 rounded font-bold text-[10px]">Hapus</button>
+                              <button type="button" onClick={() => handleHapusDokumenLain(idx)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white py-1 rounded-lg font-bold text-[10px] transition-colors">Hapus</button>
                             </div>
                           ))}
                         </div>
@@ -449,12 +329,16 @@ export default function DashboardRT() {
                     </div>
                   </div>
 
-                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-4 text-sm mt-4">
-                    <div><label className="block font-bold text-blue-800 mb-1">Keperluan Surat</label><textarea name="keperluan" value={formData.keperluan} onChange={handleChange} required className="w-full p-3 border border-blue-300 rounded-lg min-h-[80px]"></textarea></div>
-                    <div><label className="block font-bold text-blue-800 mb-1">Berlaku Mulai</label><input type="text" name="berlakuMulai" value={formData.berlakuMulai} onChange={handleChange} className="w-full p-2.5 border border-blue-300 rounded-lg" /></div>
-                    <div><label className="block font-bold text-blue-800 mb-1">Keterangan Lain</label><input type="text" name="keterangan" value={formData.keterangan} onChange={handleChange} className="w-full p-2.5 border border-blue-300 rounded-lg" /></div>
+                  <div className="bg-blue-50/50 p-5 rounded-3xl border border-blue-100/50 space-y-5 text-sm shadow-inner">
+                    <div><label className="block font-extrabold text-blue-800 mb-2">Keperluan Surat (Tujuan)</label><textarea name="keperluan" value={formData.keperluan} onChange={handleChange} required className="w-full p-4 bg-white/80 backdrop-blur-sm border border-blue-200 rounded-2xl min-h-[100px] outline-none focus:ring-2 focus:ring-blue-400 transition-all"></textarea></div>
+                    <div className="grid md:grid-cols-2 gap-5">
+                       <div><label className="block font-bold text-blue-800/80 mb-2">Berlaku Mulai</label><input type="text" name="berlakuMulai" value={formData.berlakuMulai} onChange={handleChange} className="w-full p-3.5 bg-white/80 backdrop-blur-sm border border-blue-200 rounded-2xl outline-none" /></div>
+                       <div><label className="block font-bold text-blue-800/80 mb-2">Keterangan Lain</label><input type="text" name="keterangan" value={formData.keterangan} onChange={handleChange} className="w-full p-3.5 bg-white/80 backdrop-blur-sm border border-blue-200 rounded-2xl outline-none" /></div>
+                    </div>
                   </div>
-                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 text-lg">Simpan ke Database</button>
+                  <button type="submit" className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-black py-4.5 rounded-2xl shadow-[0_8px_20px_rgb(59,130,246,0.3)] hover:-translate-y-0.5 transition-all text-lg tracking-wide">
+                     Simpan Data ke Database
+                  </button>
                 </form>
               </div>
             )}
@@ -462,88 +346,77 @@ export default function DashboardRT() {
         )}
 
         {activeMenu === 'arsip' && (
-          <div className="animate-fade-in-up space-y-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500">
-               <h2 className="font-bold text-gray-800 mb-3 text-sm">Download / Cetak Rekapitulasi</h2>
-               <div className="flex flex-col md:flex-row gap-3 items-end">
-                  <div className="flex-1 w-full"><label className="block text-xs font-semibold text-gray-500 mb-1">Mulai Tanggal</label><input type="date" value={tglMulai} onChange={e=>setTglMulai(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none" /></div>
-                  <div className="flex-1 w-full"><label className="block text-xs font-semibold text-gray-500 mb-1">Sampai Tanggal</label><input type="date" value={tglSelesai} onChange={e=>setTglSelesai(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none" /></div>
-                  <button onClick={handleDownloadRekap} className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-bold text-sm shadow-sm">Unduh CSV</button>
-                  <button onClick={handleCetakPDFRekap} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-bold text-sm shadow-sm">Cetak PDF (Folio)</button>
+          <div className="animate-fade-in-up space-y-8">
+            <div className="bg-white/60 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 flex flex-col md:flex-row gap-5 items-end justify-between relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full blur-3xl"></div>
+               <div className="flex-1 w-full space-y-4 relative z-10">
+                  <h2 className="font-extrabold text-blue-900 text-lg flex items-center gap-2"><span className="p-1.5 bg-cyan-100 text-cyan-600 rounded-lg"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></span> Rekapitulasi Laporan</h2>
+                  <div className="flex gap-4">
+                    <div className="flex-1"><label className="block text-xs font-bold text-blue-900/60 mb-1.5 ml-1">Mulai Tanggal</label><input type="date" value={tglMulai} onChange={e=>setTglMulai(e.target.value)} className="w-full p-3 bg-white/70 border border-blue-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-400" /></div>
+                    <div className="flex-1"><label className="block text-xs font-bold text-blue-900/60 mb-1.5 ml-1">Sampai Tanggal</label><input type="date" value={tglSelesai} onChange={e=>setTglSelesai(e.target.value)} className="w-full p-3 bg-white/70 border border-blue-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-400" /></div>
+                  </div>
+               </div>
+               <div className="flex gap-3 w-full md:w-auto relative z-10">
+                  <button onClick={handleDownloadRekap} className="flex-1 md:flex-none bg-white hover:bg-green-50 text-green-600 border border-green-200 px-6 py-3.5 rounded-xl font-bold text-sm shadow-sm transition-all text-center">CSV</button>
+                  <button onClick={handleCetakPDFRekap} className="flex-1 md:flex-none bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:shadow-lg hover:shadow-blue-500/30 px-6 py-3.5 rounded-xl font-bold text-sm transition-all hover:-translate-y-0.5 text-center">Cetak PDF</button>
                </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-5 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
-                <h2 className="text-lg font-bold text-gray-800">Riwayat Surat</h2>
-                <div className="flex gap-2">
-                  <input type="text" placeholder="Cari Nama/NIK..." value={searchKata} onChange={(e) => setSearchKata(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none flex-1" />
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none">
-                    <option value="Semua">Semua</option><option value="Draft">Draft</option><option value="Menunggu RW">Proses RW</option><option value="Disetujui RW">Selesai</option><option value="Ditolak">Ditolak</option>
-                  </select>
-                </div>
+            <div className="bg-white/60 backdrop-blur-xl p-2 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 overflow-hidden flex flex-col">
+              <div className="p-5 flex flex-col md:flex-row gap-4 border-b border-white/50">
+                <input type="text" placeholder="Cari Nama/NIK warga..." value={searchKata} onChange={(e) => setSearchKata(e.target.value)} className="flex-1 px-4 py-3 bg-white/70 border border-blue-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-cyan-400 shadow-inner" />
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-4 py-3 bg-white/70 border border-blue-100 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-cyan-400 font-semibold text-blue-900">
+                  <option value="Semua">Semua Status</option><option value="Draft">Draft</option><option value="Menunggu RW">Proses RW</option><option value="Disetujui RW">Selesai</option><option value="Ditolak">Ditolak</option>
+                </select>
               </div>
               
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto p-2">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-gray-100 border-b border-gray-200 text-gray-700 font-bold whitespace-nowrap text-xs">
-                      <th className="p-3">Nomor</th>
-                      <th className="p-3">Tgl Pengajuan</th>
-                      <th className="p-3">NIK</th>
-                      <th className="p-3">Nama</th>
-                      <th className="p-3">Keperluan</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3 text-center">Aksi (Edit/Hapus)</th>
-                      <th className="p-3 text-center">Cetak</th>
+                    <tr className="border-b border-blue-100/50">
+                      <th className="p-4 font-bold text-blue-900/60 uppercase tracking-wider text-[10px]">Nomor</th>
+                      <th className="p-4 font-bold text-blue-900/60 uppercase tracking-wider text-[10px]">Tanggal</th>
+                      <th className="p-4 font-bold text-blue-900/60 uppercase tracking-wider text-[10px]">Identitas</th>
+                      <th className="p-4 font-bold text-blue-900/60 uppercase tracking-wider text-[10px]">Keperluan</th>
+                      <th className="p-4 font-bold text-blue-900/60 uppercase tracking-wider text-[10px] text-center">Status</th>
+                      <th className="p-4 font-bold text-blue-900/60 uppercase tracking-wider text-[10px] text-center">Aksi (RT)</th>
+                      <th className="p-4 font-bold text-blue-900/60 uppercase tracking-wider text-[10px] text-center">Cetak</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredRiwayat.length === 0 ? (
-                      <tr>
-                        <td colSpan="8" className="text-center text-gray-400 py-10 italic">Data surat tidak ditemukan.</td>
-                      </tr>
+                      <tr><td colSpan="7" className="text-center text-blue-900/40 py-12 font-medium italic">Riwayat kosong atau tidak ditemukan.</td></tr>
                     ) : (
                       filteredRiwayat.map((surat, index) => (
-                        <tr key={surat.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors whitespace-nowrap text-xs">
-                          <td className="p-3 font-semibold text-gray-600">{surat.nomor_surat || `(Draft #${index + 1})`}</td>
-                          <td className="p-3 text-gray-500">{surat.tanggal}</td>
-                          <td className="p-3 font-mono text-blue-700 font-semibold">{surat.nik}</td>
-                          <td className="p-3 font-bold text-gray-800">{surat.nama}</td>
-                          <td className="p-3 text-gray-600 max-w-xs truncate">{surat.keperluan}</td>
-                          <td className="p-3">
-                            {surat.status === 'Draft' && <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-bold text-[10px]">DRAFT</span>}
-                            {surat.status === 'Menunggu RW' && <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold text-[10px]">PROSES RW</span>}
-                            {surat.status === 'Disetujui RW' && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded font-bold text-[10px]">SELESAI</span>}
+                        <tr key={surat.id} className="border-b border-blue-50/50 hover:bg-white/50 transition-colors whitespace-nowrap text-xs">
+                          <td className="p-4 font-bold text-blue-900/70">{surat.nomor_surat || `(Draft #${index + 1})`}</td>
+                          <td className="p-4 text-blue-900/60 font-medium">{surat.tanggal}</td>
+                          <td className="p-4">
+                            <p className="font-extrabold text-blue-900 text-sm">{surat.nama}</p>
+                            <p className="font-mono text-[10px] text-cyan-600 font-bold">{surat.nik}</p>
+                          </td>
+                          <td className="p-4 text-blue-800/80 max-w-[150px] truncate font-medium" title={surat.keperluan}>{surat.keperluan}</td>
+                          <td className="p-4 text-center">
+                            {surat.status === 'Draft' && <span className="bg-slate-100/80 text-slate-600 border border-slate-200 px-3 py-1 rounded-lg font-extrabold text-[9px] uppercase tracking-wide">DRAFT</span>}
+                            {surat.status === 'Menunggu RW' && <span className="bg-amber-50 text-amber-600 border border-amber-200 px-3 py-1 rounded-lg font-extrabold text-[9px] uppercase tracking-wide">PROSES RW</span>}
+                            {surat.status === 'Disetujui RW' && <span className="bg-green-50 text-green-600 border border-green-200 px-3 py-1 rounded-lg font-extrabold text-[9px] uppercase tracking-wide">SELESAI</span>}
                             {surat.status === 'Ditolak' && (
-                              <span 
-                                onClick={() => alert(`Alasan Penolakan dari Ketua RW:\n\n"${surat.alasan_tolak || 'Tidak ada alasan yang dicantumkan.'}"`)}
-                                className="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold text-[10px] cursor-pointer hover:bg-red-200 underline"
-                                title="Klik untuk melihat alasan penolakan"
-                              >
-                                DITOLAK (Ketuk)
-                              </span>
+                              <span onClick={() => alert(`Alasan Penolakan:\n"${surat.alasan_tolak || '-'}"`)} className="bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded-lg font-extrabold text-[9px] cursor-pointer hover:bg-red-100 uppercase tracking-wide">DITOLAK (Klik)</span>
                             )}
                           </td>
-                          <td className="p-3 text-center space-x-1">
+                          <td className="p-4 text-center space-x-2">
                             {surat.status === 'Draft' && (
-                              <>
-                                <button onClick={() => setSuratReview(surat)} className="bg-orange-500 hover:bg-orange-600 text-white px-2.5 py-1 rounded font-bold text-[10px]">Kirim</button>
-                                <button onClick={() => handleEdit(surat)} className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-2.5 py-1 rounded font-bold text-[10px]">Edit</button>
-                              </>
+                              <><button onClick={() => setSuratReview(surat)} className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:shadow-lg text-white px-4 py-1.5 rounded-lg font-bold text-[10px] transition-all">Kirim RW</button>
+                              <button onClick={() => handleEdit(surat)} className="bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-1.5 rounded-lg font-bold text-[10px] transition-all">Edit</button></>
                             )}
                             {surat.status === 'Ditolak' && (
-                              <>
-                                <button onClick={() => handleEdit(surat)} className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-2.5 py-1 rounded font-bold text-[10px]">Edit</button>
-                                <button onClick={() => handleHapusSurat(surat.id, surat.nama)} className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded font-bold text-[10px]">Hapus</button>
-                              </>
+                              <><button onClick={() => handleEdit(surat)} className="bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-3 py-1.5 rounded-lg font-bold text-[10px] transition-all">Edit</button>
+                              <button onClick={() => handleHapusSurat(surat.id, surat.nama)} className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg font-bold text-[10px] transition-all">Hapus</button></>
                             )}
-                            {surat.status !== 'Draft' && surat.status !== 'Ditolak' && (
-                              <span className="text-gray-400 italic text-[10px]">Terkunci</span>
-                            )}
+                            {surat.status !== 'Draft' && surat.status !== 'Ditolak' && (<span className="text-blue-900/30 italic text-[10px] font-bold">Terkunci</span>)}
                           </td>
-                          <td className="p-3 text-center">
-                            <button onClick={() => navigate('/cetak', { state: surat })} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 py-1 rounded font-bold text-[10px]">Cetak PDF</button>
+                          <td className="p-4 text-center">
+                            <button onClick={() => navigate('/cetak', { state: surat })} className="bg-white hover:bg-blue-50 text-blue-800 border border-blue-200 shadow-sm px-4 py-1.5 rounded-lg font-bold text-[10px] transition-all">Cetak</button>
                           </td>
                         </tr>
                       ))
@@ -555,49 +428,73 @@ export default function DashboardRT() {
           </div>
         )}
 
-        {/* MENU PROFIL & GANTI PASSWORD */}
         {activeMenu === 'profil' && (
           <div className="animate-fade-in-up space-y-6 max-w-md mx-auto">
-            
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-              <h2 className="text-lg font-bold text-gray-800 border-b pb-2">Ganti Password</h2>
-              <form onSubmit={handleGantiPassword} className="space-y-4 text-sm">
-                <div>
-                  <label className="block font-semibold mb-1 text-gray-700">Password Baru</label>
-                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength="6" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Minimal 6 karakter" />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1 text-gray-700">Konfirmasi Password Baru</label>
-                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength="6" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ulangi password baru" />
-                </div>
-                <button type="submit" disabled={isChangingPassword} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-sm transition-all disabled:bg-blue-400">
-                  {isChangingPassword ? 'Memproses...' : 'Simpan Password Baru'}
+            <div className="bg-white/60 backdrop-blur-xl p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-blue-400/20 rounded-full blur-2xl"></div>
+              <h2 className="text-xl font-extrabold text-blue-900 mb-6 flex items-center gap-2 relative z-10"><span className="p-1.5 bg-blue-100/50 text-blue-600 rounded-lg"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg></span> Ganti Password</h2>
+              <form onSubmit={handleGantiPassword} className="space-y-5 text-sm relative z-10">
+                <div><label className="block font-bold text-blue-900/80 mb-2">Password Baru</label><input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength="6" className="w-full p-4 bg-white/70 border border-blue-100 rounded-2xl outline-none focus:ring-2 focus:ring-cyan-400 shadow-inner" placeholder="Minimal 6 karakter" /></div>
+                <div><label className="block font-bold text-blue-900/80 mb-2">Konfirmasi Password</label><input type="text" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength="6" className="w-full p-4 bg-white/70 border border-blue-100 rounded-2xl outline-none focus:ring-2 focus:ring-cyan-400 shadow-inner" placeholder="Ketik ulang password..." /></div>
+                <button type="submit" disabled={isChangingPassword} className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-500/30 transition-all hover:-translate-y-0.5 mt-2 tracking-wide">
+                  {isChangingPassword ? 'Memproses...' : 'Simpan Password'}
                 </button>
               </form>
             </div>
             
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <button onClick={handleLogout} className="w-full bg-red-100 text-red-600 border border-red-200 font-bold py-4 rounded-xl text-sm shadow-sm flex items-center justify-center gap-2 hover:bg-red-200 transition-colors">
-                Keluar dari Sistem (Logout)
-              </button>
+            <div className="bg-white/40 backdrop-blur-md p-2 rounded-3xl border border-white/60">
+              <button onClick={handleLogout} className="w-full bg-white/60 hover:bg-red-50 text-red-600 border border-red-100 font-bold py-4 rounded-2xl text-sm shadow-sm flex items-center justify-center gap-2 transition-all">Logout / Keluar</button>
             </div>
           </div>
         )}
       </div>
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around p-2 pb-safe z-50">
-        <button onClick={() => setActiveMenu('beranda')} className={`w-full py-1 font-bold text-[10px] ${activeMenu === 'beranda' ? 'text-blue-600' : 'text-gray-400'}`}>Buat Surat</button>
-        <button onClick={() => setActiveMenu('arsip')} className={`w-full py-1 font-bold text-[10px] ${activeMenu === 'arsip' ? 'text-blue-600' : 'text-gray-400'}`}>Arsip & Laporan</button>
-        <button onClick={() => setActiveMenu('profil')} className={`w-full py-1 font-bold text-[10px] ${activeMenu === 'profil' ? 'text-blue-600' : 'text-gray-400'}`}>Profil</button>
+      {/* FOOTER */}
+      <footer className="no-print mt-auto bg-white/40 backdrop-blur-xl border-t border-white/60 py-8 text-blue-900 shadow-[0_-8px_30px_rgb(0,0,0,0.02)] relative z-10">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+          <div>
+            <p className="font-extrabold text-blue-900 text-lg tracking-wider">RUKUN WARGA 05</p>
+            <p className="text-xs text-blue-800/70 mt-1 font-semibold max-w-sm">Kelurahan Tambakreja, Kecamatan Cilacap Selatan, Kabupaten Cilacap</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 justify-center md:justify-end">
+            <a href="https://www.instagram.com/rw_05_tambakreja" target="_blank" rel="noopener noreferrer"
+               className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-tr from-amber-500 via-pink-600 to-purple-600 text-white font-bold rounded-2xl transition-all shadow-lg hover:shadow-pink-500/30 hover:-translate-y-0.5 text-xs">
+              <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+              <span>@rw_05_tambakreja</span>
+              <ExternalLinkIcon />
+            </a>
+
+            <a href="https://www.tiktok.com/@rw_05_tambakreja" target="_blank" rel="noopener noreferrer"
+               className="flex items-center gap-2 px-5 py-2.5 bg-black/80 hover:bg-black text-white font-bold rounded-2xl transition-all shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 text-xs">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/3/34/Ionicons_logo-tiktok.svg" alt="TikTok" className="w-4 h-4 shrink-0 brightness-0 invert" />
+              <span>@rw_05_tambakreja</span>
+              <ExternalLinkIcon />
+            </a>
+          </div>
+        </div>
+        
+        <div className="mt-8 pt-6 border-t border-blue-900/10 text-center flex flex-col items-center justify-center gap-1.5 pb-safe">
+          <p className="text-[10px] font-bold text-blue-800/40 uppercase tracking-widest">Powered by AI</p>
+          <p className="text-xs font-bold text-blue-900 bg-white/60 px-4 py-1.5 rounded-full border border-white shadow-sm">Created by Aris Triono</p>
+        </div>
+      </footer>
+
+      {/* BOTTOM NAV MOBILE GLASSMORPHISM */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-white/60 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] flex justify-around p-1 pb-safe z-50">
+        <button onClick={() => setActiveMenu('beranda')} className={`w-full py-3 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all ${activeMenu === 'beranda' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}>Buat Surat</button>
+        <button onClick={() => setActiveMenu('arsip')} className={`w-full py-3 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all ${activeMenu === 'arsip' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}>Laporan</button>
+        <button onClick={() => setActiveMenu('profil')} className={`w-full py-3 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all ${activeMenu === 'profil' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}>Profil</button>
       </div>
 
       {suratReview && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden animate-fade-in-up">
-            <div className="bg-blue-600 p-4 text-white flex justify-between items-center"><h3 className="font-bold text-lg">Konfirmasi Kirim DB</h3><button onClick={() => setSuratReview(null)}>✖</button></div>
-            <div className="p-5">
-              <p className="mb-4 text-sm font-semibold text-gray-700">Kirim surat {suratReview.nama} ke antrean Ketua RW?</p>
-              <button onClick={handleKirimKeRW} className={`w-full font-bold py-3 rounded-xl shadow-sm bg-green-600 text-white`}>Kirim Sekarang</button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-blue-900/40 backdrop-blur-md">
+          <div className="bg-white/90 backdrop-blur-2xl border border-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-fade-in-up">
+            <div className="bg-gradient-to-r from-blue-500 to-cyan-500 p-5 text-white flex justify-between items-center"><h3 className="font-extrabold text-lg tracking-wide">Kirim ke DB Cloud</h3><button onClick={() => setSuratReview(null)} className="opacity-80 hover:opacity-100 font-bold">✕</button></div>
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100"><svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg></div>
+              <p className="mb-6 text-sm font-semibold text-blue-900/80 leading-relaxed">Kirim pengajuan surat atas nama <br/><b className="text-blue-900 text-base">{suratReview.nama}</b><br/> ke antrean RW?</p>
+              <button onClick={handleKirimKeRW} className="w-full font-black py-4 rounded-2xl shadow-[0_8px_20px_rgb(59,130,246,0.3)] bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:-translate-y-0.5 transition-all text-sm tracking-widest uppercase">Kirim Sekarang</button>
             </div>
           </div>
         </div>
