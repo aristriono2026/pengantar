@@ -74,7 +74,7 @@ export default function CetakSurat() {
           <div className="w-[15%] flex justify-center">
             <img src="/logo_clp.jpg" alt="Logo Cilacap" className="w-[14mm] h-auto object-contain grayscale" onError={(e) => e.target.style.display='none'} />
           </div>
-          <div className="w-[70%] text-center font-bold text-[9pt] leading-[1.15]">
+          <div className="w-[70%] text-center font-bold text-[10pt] leading-[1.15]">
             <p>PEMERINTAH KABUPATEN CILACAP</p>
             <p>KECAMATAN CILACAP SELATAN</p>
             <p>KELURAHAN TAMBAKREJA</p>
