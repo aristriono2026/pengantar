@@ -152,7 +152,11 @@ export default function DashboardRT() {
         alert(`Surat berhasil dibuat (DRAFT).`);
       }
       setStatusPencarian(null); setCariNik(''); setActiveMenu('arsip')
-    } catch (error) { alert("Gagal menyimpan ke database."); }
+    } catch (error) { 
+      // Tambahkan console.error untuk melihat detail masalah di Inspect Element
+      console.error("Detail Error Firebase:", error);
+      alert("Gagal menyimpan ke database: " + error.message); 
+    }
   }
 
   const handleKirimKeRW = async () => {
