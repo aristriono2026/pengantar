@@ -13,6 +13,8 @@ export default function DashboardRT() {
   const currentUserRT = localStorage.getItem("currentUserRT") || "04"; 
 
   const [activeMenu, setActiveMenu] = useState('beranda') 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
   const [cariNik, setCariNik] = useState('')
   const [statusPencarian, setStatusPencarian] = useState(null) 
   
@@ -24,6 +26,8 @@ export default function DashboardRT() {
   
   const [tglMulai, setTglMulai] = useState('')
   const [tglSelesai, setTglSelesai] = useState('')
+  
+  const [isSubmitting, setIsSubmitting] = useState(false) // State loading simpan
 
   const [formData, setFormData] = useState({
     nik: '', nama: '', jenis_kelamin: 'Lk', tempat_lahir: '', tanggal_lahir: '', 
@@ -45,7 +49,7 @@ export default function DashboardRT() {
       setRiwayatSurat(suratData);
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentUserRT]);
 
   const setTanggalBerlaku = () => {
     const hariIni = new Date(); const batasBerlaku = new Date(hariIni); batasBerlaku.setMonth(batasBerlaku.getMonth() + 3); 
@@ -98,31 +102,77 @@ export default function DashboardRT() {
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value })
   
-  const handleFileChange = (e) => {
+  // === FUNGSI KOMPRESI GAMBAR AGAR TIDAK OVERLIMIT (1MB) ===
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800; 
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+          } else {
+            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Kompres jadi JPEG dengan Kualitas 60% (Akan menekan size sangat drastis)
+          resolve(canvas.toDataURL('image/jpeg', 0.6));
+        };
+      };
+    });
+  };
+
+  const handleFileChange = async (e) => {
     const { name, files } = e.target;
     if (files && files[0]) {
-      const reader = new FileReader();
-      reader.onloadend = () => { setDokumen(prev => ({ ...prev, [name]: reader.result })); };
-      reader.readAsDataURL(files[0]);
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        const compressedBase64 = await compressImage(file);
+        setDokumen(prev => ({ ...prev, [name]: compressedBase64 }));
+      } else {
+        alert("Harap unggah file gambar (JPG/PNG).");
+      }
     }
   };
 
-  const handleMultiFileChange = (e) => {
+  const handleMultiFileChange = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
-    let loadedCount = 0;
+    
     const newFilesBase64 = [];
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        newFilesBase64.push({ name: file.name, data: reader.result });
-        loadedCount++;
-        if (loadedCount === files.length) {
-          setDokumen(prev => ({ ...prev, dokumenLainnya: [...prev.dokumenLainnya, ...newFilesBase64] }));
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        const compressedBase64 = await compressImage(file);
+        newFilesBase64.push({ name: file.name, data: compressedBase64 });
+      } else if (file.type === 'application/pdf') {
+        if (file.size > 300 * 1024) { // Peringatan jika PDF lebih dari 300KB
+          alert(`File PDF "${file.name}" terlalu besar (Max 300KB). Karena Firebase memiliki batas data 1MB.`);
+          continue;
         }
-      };
-      reader.readAsDataURL(file);
-    });
+        const reader = new FileReader();
+        await new Promise(resolve => {
+          reader.readAsDataURL(file);
+          reader.onload = () => {
+            newFilesBase64.push({ name: file.name, data: reader.result });
+            resolve();
+          };
+        });
+      }
+    }
+    setDokumen(prev => ({ ...prev, dokumenLainnya: [...prev.dokumenLainnya, ...newFilesBase64] }));
   };
 
   const handleHapusDokumenLain = (index) => {
@@ -131,6 +181,7 @@ export default function DashboardRT() {
 
   const handleSubmitDraft = async (e) => {
     e.preventDefault()
+    setIsSubmitting(true)
     const tglFormated = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const payloadSurat = {
       rt_pengaju: `RT ${currentUserRT}`, 
@@ -153,9 +204,10 @@ export default function DashboardRT() {
       }
       setStatusPencarian(null); setCariNik(''); setActiveMenu('arsip')
     } catch (error) { 
-      // Tambahkan console.error untuk melihat detail masalah di Inspect Element
-      console.error("Detail Error Firebase:", error);
-      alert("Gagal menyimpan ke database: " + error.message); 
+      console.error(error);
+      alert("Gagal menyimpan ke database. Data dokumen masih terlalu besar. Kurangi jumlah lampiran gambar."); 
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -188,7 +240,7 @@ export default function DashboardRT() {
     if (dataFilter.length === 0) return alert("Tidak ada data.");
 
     const printWindow = window.open('', '_blank');
-    const htmlContent = `<!DOCTYPE html><html lang="id"><head><title>Rekap RT ${currentUserRT}</title><style>@page { size: 210mm 330mm; margin: 15mm; } body { font-family: Arial; font-size: 11pt; } .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10mm; margin-bottom: 20mm; } table { width: 100%; border-collapse: collapse; margin-top: 10mm; } th, td { border: 1px solid #000; padding: 8mm; text-align: left; } th { background-color: #f2f2f2 !important; } .footer { margin-top: 40mm; float: right; text-align: center; }</style></head><body><div class="header"><h3>PEMERINTAH KABUPATEN CILACAP</h3><h2>REKAPITULASI SURAT RT ${currentUserRT}</h2><p>Periode: ${tglMulai} s/d ${tglSelesai}</p></div><table><thead><tr><th>No</th><th>Tanggal</th><th>Nomor Surat</th><th>Nama Pemohon</th><th>Keperluan</th><th>Status</th></tr></thead><tbody>${dataFilter.map((s, i) => `<tr><td style="text-align: center;">${i + 1}</td><td>${s.tanggal}</td><td>${s.nomor_surat || '-'}</td><td><b>${s.nama}</b><br><span style="font-size:8pt">NIK: ${s.nik}</span></td><td>${s.keperluan}</td><td style="text-align: center;"><b>${s.status}</b></td></tr>`).join('')}</tbody></table><div class="footer"><p>Tambakreja, ${new Date().toLocaleDateString('id-ID')}</p><p>Ketua RT ${currentUserRT}</p><div style="height:40mm"></div><p><b>( .......................... )</b></p></div><script>window.onload=function(){window.print();window.close();}</script></body></html>`;
+    const htmlContent = `<!DOCTYPE html><html lang="id"><head><title>Rekap RT ${currentUserRT}</title><style>@page { size: 210mm 330mm; margin: 15mm; } body { font-family: Arial; font-size: 11pt; } .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10mm; margin-bottom: 20mm; } table { width: 100%; border-collapse: collapse; margin-top: 10mm; } th, td { border: 1px solid #000; padding: 8mm; text-align: left; } th { background-color: #f2f2f2 !important; } .footer { margin-top: 40mm; float: right; text-align: center; }</style></head><body><div class="header"><h3>PEMERINTAH KABUPATEN CILACAP</h3><h2>REKAPITULASI SURAT RT ${currentUserRT}</h2><p>Periode: ${tglMulai} s/d ${tglSelesai}</p></div><table><thead><tr><th>No</th><th>Tanggal</th><th>Nomor Surat</th><th>Nama Pemohon</th><th>Keperluan</th><th>Status</th></tr></thead><tbody>${dataFilter.map((s, i) => `<tr><td style="text-align: center;">${i + 1}</td><td>${s.tanggal}</td><td>${s.nomor_surat \vert{}\vert{} '-'}</td><td><b>${s.nama}</b><br><span style="font-size:8pt">NIK: ${s.nik}</span></td><td>${s.keperluan}</td><td style="text-align: center;"><b>${s.status}</b></td></tr>`).join('')}</tbody></table><div class="footer"><p>Tambakreja, ${new Date().toLocaleDateString('id-ID')}</p><p>Ketua RT ${currentUserRT}</p><div style="height:40mm"></div><p><b>( .......................... )</b></p></div><script>window.onload=function(){window.print();window.close();}</script></body></html>`;
     printWindow.document.write(htmlContent); printWindow.document.close();
   }
 
@@ -219,31 +271,52 @@ export default function DashboardRT() {
   })
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-white to-blue-50 font-sans text-gray-800 pb-20 md:pb-10 flex flex-col relative">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-white to-blue-50 font-sans text-gray-800 pb-10 flex flex-col relative">
       
-      {/* NAVBAR DESKTOP GLASSMORPHISM */}
-      <nav className="hidden md:flex bg-white/70 backdrop-blur-xl border-b border-white/50 text-blue-900 p-4 shadow-[0_4px_30px_rgb(0,0,0,0.03)] justify-between items-center sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 font-black text-lg">
-            {currentUserRT}
+      <nav className="bg-white/80 backdrop-blur-xl border-b border-white/50 text-blue-900 p-4 shadow-sm sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 font-black text-lg">
+              {currentUserRT}
+            </div>
+            <div>
+              <h1 className="text-lg font-extrabold tracking-tight">Dasbor Ketua RT {currentUserRT}</h1>
+              <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">RW 05 Tambakreja</p>
+            </div>
           </div>
-          <div><h1 className="text-lg font-extrabold tracking-tight">Dasbor Ketua RT</h1><p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">RW 05 Tambakreja</p></div>
-        </div>
-        <div className="flex gap-2 p-1 bg-blue-50/50 rounded-2xl border border-blue-100/50 backdrop-blur-sm">
-          <button onClick={() => setActiveMenu('beranda')} className={`px-5 py-2 font-bold text-sm rounded-xl transition-all ${activeMenu === 'beranda' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Beranda</button>
-          <button onClick={() => setActiveMenu('arsip')} className={`px-5 py-2 font-bold text-sm rounded-xl transition-all ${activeMenu === 'arsip' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Arsip & Laporan</button>
-          <button onClick={() => setActiveMenu('profil')} className={`px-5 py-2 font-bold text-sm rounded-xl transition-all ${activeMenu === 'profil' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Profil</button>
-        </div>
-      </nav>
 
-      {/* NAVBAR MOBILE */}
-      <div className="md:hidden bg-white/80 backdrop-blur-xl text-blue-900 p-4 shadow-sm border-b border-blue-100/50 sticky top-0 z-40 flex items-center gap-3">
-         <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white shadow-md font-black text-sm">{currentUserRT}</div>
-         <div>
-           <h1 className="text-base font-extrabold tracking-tight">Dasbor RT {currentUserRT}</h1>
-           <p className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">{activeMenu}</p>
-         </div>
-      </div>
+          <div className="hidden md:flex gap-1.5 p-1 bg-blue-50/50 rounded-2xl border border-blue-100/50 backdrop-blur-sm items-center">
+            <button onClick={() => setActiveMenu('beranda')} className={`px-5 py-2 font-bold text-xs rounded-xl transition-all ${activeMenu === 'beranda' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Beranda</button>
+            <button onClick={() => setActiveMenu('arsip')} className={`px-5 py-2 font-bold text-xs rounded-xl transition-all ${activeMenu === 'arsip' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Arsip & Laporan</button>
+            <button onClick={() => setActiveMenu('profil')} className={`px-5 py-2 font-bold text-xs rounded-xl transition-all ${activeMenu === 'profil' ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-900/60 hover:text-blue-800'}`}>Profil</button>
+            <div className="w-px bg-blue-200/50 mx-1 h-5"></div>
+            <button onClick={handleLogout} className="px-5 py-2 font-bold text-xs rounded-xl transition-all bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-100 shadow-sm">Logout</button>
+          </div>
+
+          <div className="md:hidden flex items-center">
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isMobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {isMobileMenuOpen && (
+          <div className="md:hidden absolute top-[72px] right-4 w-52 bg-white/95 backdrop-blur-2xl shadow-2xl border border-blue-100 rounded-2xl flex flex-col p-2 gap-1 z-50 animate-fade-in-up">
+            <button onClick={() => { setActiveMenu('beranda'); setIsMobileMenuOpen(false); }} className={`text-left px-4 py-3 font-bold text-sm rounded-xl transition-all ${activeMenu === 'beranda' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-700' : 'text-blue-900/70 hover:bg-blue-50'}`}>Beranda</button>
+            <button onClick={() => { setActiveMenu('arsip'); setIsMobileMenuOpen(false); }} className={`text-left px-4 py-3 font-bold text-sm rounded-xl transition-all ${activeMenu === 'arsip' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-700' : 'text-blue-900/70 hover:bg-blue-50'}`}>Arsip & Laporan</button>
+            <button onClick={() => { setActiveMenu('profil'); setIsMobileMenuOpen(false); }} className={`text-left px-4 py-3 font-bold text-sm rounded-xl transition-all ${activeMenu === 'profil' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-700' : 'text-blue-900/70 hover:bg-blue-50'}`}>Profil</button>
+            <div className="h-px bg-blue-100/50 my-1 mx-2"></div>
+            <button onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} className="text-left px-4 py-3 font-bold text-sm rounded-xl text-red-600 hover:bg-red-50 transition-all">Logout / Keluar</button>
+          </div>
+        )}
+      </nav>
 
       <div className="flex-1 max-w-6xl w-full mx-auto mt-6 px-4 space-y-8 relative z-10">
         
@@ -263,11 +336,10 @@ export default function DashboardRT() {
               <div className="bg-white/60 backdrop-blur-xl p-6 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-white/60">
                 <div className="flex justify-between items-center border-b border-blue-100/50 pb-5 mb-6">
                   <h2 className="text-xl font-extrabold text-blue-900">{editModeId ? "Edit Data Pengajuan" : "Formulir Data Warga"}</h2>
-                  {editModeId && <button onClick={() => {setEditModeId(null); setStatusPencarian(null)}} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-xl font-bold text-xs transition-all shadow-sm">✖ Batal Edit</button>}
+                  {editModeId && <button type="button" onClick={() => {setEditModeId(null); setStatusPencarian(null)}} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-xl font-bold text-xs transition-all shadow-sm">✖ Batal Edit</button>}
                 </div>
                 
                 <form onSubmit={handleSubmitDraft} className="space-y-6">
-                  {/* GRID FORM - GLASSMORPHISM INPUTS */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
                     <div className="md:col-span-2"><label className="block font-bold text-blue-900/80 mb-1.5">1. NIK</label><input type="text" name="nik" value={formData.nik} readOnly className="w-full p-3.5 bg-blue-50/50 border border-blue-100/50 rounded-2xl font-bold text-blue-900" /></div>
                     <div className="md:col-span-2"><label className="block font-bold text-blue-900/80 mb-1.5">2. Nama Lengkap</label><input type="text" name="nama" value={formData.nama} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
@@ -283,21 +355,19 @@ export default function DashboardRT() {
                     <div><label className="block font-bold text-blue-900/80 mb-1.5">12. Pekerjaan</label><input type="text" name="pekerjaan" value={formData.pekerjaan} onChange={handleChange} required className="w-full p-3.5 bg-white/50 backdrop-blur-sm border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none" /></div>
                   </div>
 
-                  {/* KOTAK DOKUMEN - DIPERBARUI DENGAN TOMBOL KAMERA & GALERI KHUSUS */}
                   <div className="bg-white/40 p-5 rounded-3xl border border-white/60 shadow-sm space-y-5 text-sm">
-                    <h3 className="font-extrabold text-blue-900 border-b border-blue-100/50 pb-3">Dokumen Pendukung (Kamera / File)</h3>
+                    <h3 className="font-extrabold text-blue-900 border-b border-blue-100/50 pb-3">Dokumen Pendukung</h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {/* DOKUMEN: KTP */}
                       <div className="bg-white/60 p-4 rounded-2xl border border-white">
-                        <label className="block font-bold text-blue-900/80 mb-2 text-xs">Foto KTP (Maks. 1 Dokumen)</label>
+                        <label className="block font-bold text-blue-900/80 mb-2 text-xs">Foto KTP</label>
                         <div className="flex gap-2 mb-3">
                           <label className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer hover:-translate-y-0.5 transition-all">
-                            📸 Kamera
+                            Kamera
                             <input type="file" name="fotoKTP" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
                           </label>
                           <label className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all">
-                            📁 Galeri / File
+                            Galeri / File
                             <input type="file" name="fotoKTP" accept="image/*" onChange={handleFileChange} className="hidden" />
                           </label>
                         </div>
@@ -309,16 +379,15 @@ export default function DashboardRT() {
                         )}
                       </div>
 
-                      {/* DOKUMEN: KK */}
                       <div className="bg-white/60 p-4 rounded-2xl border border-white">
-                        <label className="block font-bold text-blue-900/80 mb-2 text-xs">Foto KK (Maks. 1 Dokumen)</label>
+                        <label className="block font-bold text-blue-900/80 mb-2 text-xs">Foto KK</label>
                         <div className="flex gap-2 mb-3">
                           <label className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer hover:-translate-y-0.5 transition-all">
-                            📸 Kamera
+                            Kamera
                             <input type="file" name="fotoKK" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
                           </label>
                           <label className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all">
-                            📁 Galeri / File
+                            Galeri / File
                             <input type="file" name="fotoKK" accept="image/*" onChange={handleFileChange} className="hidden" />
                           </label>
                         </div>
@@ -331,16 +400,15 @@ export default function DashboardRT() {
                       </div>
                     </div>
 
-                    {/* DOKUMEN: LAINNYA */}
                     <div className="pt-3">
-                      <label className="block font-bold text-blue-900/80 mb-2 text-xs">Dokumen Lainnya (Multi-file / PDF / Gambar)</label>
+                      <label className="block font-bold text-blue-900/80 mb-2 text-xs">Dokumen Lainnya</label>
                       <div className="flex gap-2 md:w-1/2 mb-3">
                           <label className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer hover:-translate-y-0.5 transition-all">
-                            📸 Buka Kamera
+                            Kamera
                             <input type="file" multiple accept="image/*" capture="environment" onChange={handleMultiFileChange} className="hidden" />
                           </label>
                           <label className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all">
-                            📁 Pilih File
+                            Pilih File
                             <input type="file" multiple accept="image/*,.pdf" onChange={handleMultiFileChange} className="hidden" />
                           </label>
                       </div>
@@ -370,8 +438,9 @@ export default function DashboardRT() {
                        <div><label className="block font-bold text-blue-800/80 mb-2">Keterangan Lain</label><input type="text" name="keterangan" value={formData.keterangan} onChange={handleChange} className="w-full p-3.5 bg-white/80 backdrop-blur-sm border border-blue-200 rounded-2xl outline-none" /></div>
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-black py-4.5 rounded-2xl shadow-[0_8px_20px_rgb(59,130,246,0.3)] hover:-translate-y-0.5 transition-all text-lg tracking-wide">
-                     Simpan Data ke Database
+                  
+                  <button type="submit" disabled={isSubmitting} className={`w-full font-black py-4.5 rounded-2xl transition-all text-lg tracking-wide ${isSubmitting ? 'bg-blue-300 text-white cursor-wait' : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-[0_8px_20px_rgb(59,130,246,0.3)] hover:-translate-y-0.5'}`}>
+                     {isSubmitting ? 'Menyimpan...' : 'Simpan Data ke Database'}
                   </button>
                 </form>
               </div>
@@ -476,14 +545,13 @@ export default function DashboardRT() {
               </form>
             </div>
             
-            <div className="bg-white/40 backdrop-blur-md p-2 rounded-3xl border border-white/60">
+            <div className="bg-white/40 backdrop-blur-md p-2 rounded-3xl border border-white/60 md:hidden">
               <button onClick={handleLogout} className="w-full bg-white/60 hover:bg-red-50 text-red-600 border border-red-100 font-bold py-4 rounded-2xl text-sm shadow-sm flex items-center justify-center gap-2 transition-all">Logout / Keluar</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* FOOTER */}
       <footer className="no-print mt-auto bg-white/40 backdrop-blur-xl border-t border-white/60 py-8 text-blue-900 shadow-[0_-8px_30px_rgb(0,0,0,0.02)] relative z-10">
         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
           <div>
@@ -513,13 +581,6 @@ export default function DashboardRT() {
           <p className="text-xs font-bold text-blue-900 bg-white/60 px-4 py-1.5 rounded-full border border-white shadow-sm">Created by Aris Triono</p>
         </div>
       </footer>
-
-      {/* BOTTOM NAV MOBILE GLASSMORPHISM */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-white/60 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] flex justify-around p-1 pb-safe z-50">
-        <button onClick={() => setActiveMenu('beranda')} className={`w-full py-3 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all ${activeMenu === 'beranda' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}>Buat Surat</button>
-        <button onClick={() => setActiveMenu('arsip')} className={`w-full py-3 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all ${activeMenu === 'arsip' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}>Laporan</button>
-        <button onClick={() => setActiveMenu('profil')} className={`w-full py-3 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all ${activeMenu === 'profil' ? 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border border-blue-200/50' : 'text-blue-900/40'}`}>Profil</button>
-      </div>
 
       {suratReview && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-blue-900/40 backdrop-blur-md">
