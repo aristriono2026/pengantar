@@ -27,7 +27,7 @@ export default function DashboardRT() {
   const [tglMulai, setTglMulai] = useState('')
   const [tglSelesai, setTglSelesai] = useState('')
   
-  const [isSubmitting, setIsSubmitting] = useState(false) // State loading simpan
+  const [isSubmitting, setIsSubmitting] = useState(false) 
 
   const [formData, setFormData] = useState({
     nik: '', nama: '', jenis_kelamin: 'Lk', tempat_lahir: '', tanggal_lahir: '', 
@@ -102,7 +102,7 @@ export default function DashboardRT() {
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value })
   
-  // === FUNGSI KOMPRESI GAMBAR AGAR TIDAK OVERLIMIT (1MB) ===
+  // Fungsi Kompresi Gambar agar file yang diupload kecil (Menghindari limit 1MB Firebase)
   const compressImage = (file) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -128,8 +128,7 @@ export default function DashboardRT() {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Kompres jadi JPEG dengan Kualitas 60% (Akan menekan size sangat drastis)
-          resolve(canvas.toDataURL('image/jpeg', 0.6));
+          resolve(canvas.toDataURL('image/jpeg', 0.6)); // Kualitas 60%
         };
       };
     });
@@ -158,8 +157,8 @@ export default function DashboardRT() {
         const compressedBase64 = await compressImage(file);
         newFilesBase64.push({ name: file.name, data: compressedBase64 });
       } else if (file.type === 'application/pdf') {
-        if (file.size > 300 * 1024) { // Peringatan jika PDF lebih dari 300KB
-          alert(`File PDF "${file.name}" terlalu besar (Max 300KB). Karena Firebase memiliki batas data 1MB.`);
+        if (file.size > 300 * 1024) { 
+          alert(`File PDF "${file.name}" terlalu besar (Max 300KB).`);
           continue;
         }
         const reader = new FileReader();
@@ -228,26 +227,14 @@ export default function DashboardRT() {
     const csvRows = [["Tanggal", "No Surat", "NIK", "Nama Pemohon", "Keperluan", "Status"].join(";")];
     dataFilter.forEach(s => csvRows.push([`"${s.tanggal}"`, `"${s.nomor_surat}"`, `="${s.nik}"`, `"${s.nama}"`, `"${s.keperluan}"`, `"${s.status}"`].join(";")));
     
-    // Perbaikan: Menghindari penggunaan escape sequence yang ditolak Vercel
-    const bom = String.fromCharCode(0xFEFF);
-    const blob = new Blob([bom + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    // Solusi paling aman untuk Vite/Vercel: Gunakan Uint8Array untuk UTF-8 BOM
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
     
     const link = document.createElement("a"); 
     link.href = URL.createObjectURL(blob); 
     link.download = `Rekap_RT${currentUserRT}_${tglMulai}.csv`; 
     link.click();
-  }
-
-  const handleCetakPDFRekap = () => {
-    if (!tglMulai || !tglSelesai) return alert("Pilih Tanggal Mulai dan Selesai!");
-    const startTimestamp = new Date(tglMulai).setHours(0, 0, 0, 0);
-    const endTimestamp = new Date(tglSelesai).setHours(23, 59, 59, 999);
-    const dataFilter = riwayatSurat.filter(s => s.timestamp >= startTimestamp && s.timestamp <= endTimestamp);
-    if (dataFilter.length === 0) return alert("Tidak ada data.");
-
-    const printWindow = window.open('', '_blank');
-    const htmlContent = `<!DOCTYPE html><html lang="id"><head><title>Rekap RT ${currentUserRT}</title><style>@page { size: 210mm 330mm; margin: 15mm; } body { font-family: Arial; font-size: 11pt; } .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10mm; margin-bottom: 20mm; } table { width: 100%; border-collapse: collapse; margin-top: 10mm; } th, td { border: 1px solid #000; padding: 8mm; text-align: left; } th { background-color: #f2f2f2 !important; } .footer { margin-top: 40mm; float: right; text-align: center; }</style></head><body><div class="header"><h3>PEMERINTAH KABUPATEN CILACAP</h3><h2>REKAPITULASI SURAT RT ${currentUserRT}</h2><p>Periode: ${tglMulai} s/d ${tglSelesai}</p></div><table><thead><tr><th>No</th><th>Tanggal</th><th>Nomor Surat</th><th>Nama Pemohon</th><th>Keperluan</th><th>Status</th></tr></thead><tbody>${dataFilter.map((s, i) => `<tr><td style="text-align: center;">${i + 1}</td><td>${s.tanggal}</td><td>${s.nomor_surat \vert{}\vert{} '-'}</td><td><b>${s.nama}</b><br><span style="font-size:8pt">NIK: ${s.nik}</span></td><td>${s.keperluan}</td><td style="text-align: center;"><b>${s.status}</b></td></tr>`).join('')}</tbody></table><div class="footer"><p>Tambakreja, ${new Date().toLocaleDateString('id-ID')}</p><p>Ketua RT ${currentUserRT}</p><div style="height:40mm"></div><p><b>( .......................... )</b></p></div><script>window.onload=function(){window.print();window.close();}</script></body></html>`;
-    printWindow.document.write(htmlContent); printWindow.document.close();
   }
 
   const handleGantiPassword = async (e) => {
