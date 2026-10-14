@@ -228,8 +228,14 @@ export default function DashboardRT() {
     const csvRows = [["Tanggal", "No Surat", "NIK", "Nama Pemohon", "Keperluan", "Status"].join(";")];
     dataFilter.forEach(s => csvRows.push([`"${s.tanggal}"`, `"${s.nomor_surat}"`, `="${s.nik}"`, `"${s.nama}"`, `"${s.keperluan}"`, `"${s.status}"`].join(";")));
     
-    const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Rekap_RT${currentUserRT}_${tglMulai}.csv`; link.click();
+    // Perbaikan: Menghindari penggunaan escape sequence yang ditolak Vercel
+    const bom = String.fromCharCode(0xFEFF);
+    const blob = new Blob([bom + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    
+    const link = document.createElement("a"); 
+    link.href = URL.createObjectURL(blob); 
+    link.download = `Rekap_RT${currentUserRT}_${tglMulai}.csv`; 
+    link.click();
   }
 
   const handleCetakPDFRekap = () => {
