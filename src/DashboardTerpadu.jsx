@@ -3,6 +3,9 @@ import { auth, db, firebaseConfig } from './firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { updatePassword, signOut, getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { initializeApp } from 'firebase/app';
+import html2pdf from 'html2pdf.js';
+import { toJpeg } from 'html-to-image';
+import jsPDF from 'jspdf';
 
 const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
 const secondaryAuth = getAuth(secondaryApp);
@@ -163,11 +166,14 @@ function ModalVerifikasiDetail({ surat, onClose, onKonfirmasi, judulTombolAksi, 
 }
 
 // ==========================================
-// 1. KOMPONEN CETAK
+// 1. KOMPONEN CETAK (UKURAN FONT DIPERBESAR & SPASI DIRAPIKAN)
 // ==========================================
 function CetakSurat({ surat, onKembali }) {
   const [namaRtAktif, setNamaRtAktif] = useState(surat.nama_rt || '');
   const [namaRwAktif, setNamaRwAktif] = useState(surat.nama_rw || '');
+  
+  const [isDownloading, setIsDownloading] = useState(false);
+  const kertasSuratRef = useRef();
 
   useEffect(() => {
     const fetchPejabat = async () => {
@@ -195,144 +201,235 @@ function CetakSurat({ surat, onKembali }) {
 
   if (!surat) return <div className="text-center mt-20 font-bold text-cyan-400">Data tidak ditemukan!</div>;
 
-  const qrTextRT = encodeURIComponent(`Telah disetujui oleh Ketua RT ${surat.rt} RW 05 pada Tanggal ${surat.tanggal} NIK ${surat.nik} Nama ${surat.nama} Keperluan ${surat.keperluan}`);
+  const qrTextRT = encodeURIComponent(`Disetujui Ketua RT ${surat.rt} RW 05 Tgl ${surat.tanggal} NIK ${surat.nik} An ${surat.nama}`);
   const qrUrlRT = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrTextRT}`;
 
-  const qrTextRW = encodeURIComponent(`Telah disetujui oleh Ketua RW 05 pada Tanggal ${surat.tanggal} NIK ${surat.nik} Nama ${surat.nama} Keperluan ${surat.keperluan}`);
+  const qrTextRW = encodeURIComponent(`Disetujui Ketua RW 05 Tgl ${surat.tanggal} NIK ${surat.nik} An ${surat.nama}`);
   const qrUrlRW = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrTextRW}`;
 
-  const handleDownloadPdf = () => {
+  const handlePrint = () => {
     window.print();
   };
 
+  const handleDownloadPdf = async () => {
+    const element = kertasSuratRef.current;
+    if (!element) return;
+
+    setIsDownloading(true);
+
+    try {
+      const dataUrl = await toJpeg(element, { 
+        quality: 1,
+        pixelRatio: 2, 
+        backgroundColor: '#ffffff',
+        style: {
+          margin: '0',
+          position: 'initial',
+          transform: 'none',
+          boxShadow: 'none'
+        }
+      });
+
+      const pdf = new jsPDF({ 
+        unit: 'mm', 
+        format: [165, 215], 
+        orientation: 'portrait' 
+      });
+
+      pdf.addImage(dataUrl, 'JPEG', 0, 0, 165, 215);
+      pdf.save(`Surat_Pengantar_${surat.nama}_RT${surat.rt}.pdf`);
+    } catch (error) {
+      console.error("Gagal membuat PDF:", error);
+      alert("Terjadi kesalahan saat memproses dokumen PDF.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
-    <div className="bg-slate-300 min-h-screen py-8 font-serif text-black w-full absolute top-0 left-0 z-[100] flex flex-col items-center">
-      <div className="max-w-4xl w-full mb-6 no-print flex justify-between px-4 font-sans">
-        <button onClick={onKembali} className="bg-slate-800 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg transition-all">← Kembali</button>
-        <div className="flex gap-3">
-          <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg flex items-center gap-2">🖨️ Cetak</button>
-          <button onClick={handleDownloadPdf} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg flex items-center gap-2">📥 Download PDF</button>
+    <div className="cetak-wrapper bg-slate-900 print:bg-white print:py-0 print:min-h-0 min-h-screen py-6 font-serif text-black w-full absolute top-0 left-0 z-[100] flex flex-col items-center overflow-auto">
+      
+      {/* TOMBOL AKSI */}
+      <div className="max-w-[165mm] w-full mb-4 no-print flex justify-between px-2 font-sans gap-2">
+        <button onClick={onKembali} className="bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2 rounded-xl shadow-lg transition-all text-xs">← Kembali</button>
+        <div className="flex gap-2">
+          <button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-xs">🖨️ Cetak</button>
+          
+          <button 
+            onClick={handleDownloadPdf} 
+            disabled={isDownloading}
+            className={`${isDownloading ? 'bg-emerald-800 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-bold px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-xs transition-colors`}
+          >
+            {isDownloading ? '⏳ Memproses PDF...' : '📥 Download PDF'}
+          </button>
         </div>
       </div>
 
-      <div className="surat-container bg-white p-8 lg:p-10 shadow-2xl print:shadow-none print:p-0 print:m-0 w-full max-w-[148mm] min-h-[210mm] flex flex-col justify-between">
-        <div>
-          <div className="relative border-b-[2.5px] border-black pb-3 mb-4 text-center leading-tight">
+      {/* AREA KERTAS SURAT */}
+      <div ref={kertasSuratRef} className="surat-container bg-white px-8 py-6 shadow-2xl mx-auto flex flex-col relative" style={{ width: '165mm', height: '215mm' }}>
+        
+        {/* KOP SURAT (Font diperbesar dari 13px ke 14px) */}
+        <div className="flex items-center justify-between border-b-[2.5px] border-black pb-2 mb-3">
+          <div className="w-[60px] flex-shrink-0 flex justify-start">
             <img 
               src="/logo_clp.jpg" 
               alt="Logo Cilacap" 
-              className="absolute left-0 top-0 h-20 w-auto object-contain" 
+              className="w-[52px] h-auto object-contain" 
               onError={(e) => { e.target.style.display = 'none'; }} 
             />
-            <h1 className="text-sm font-bold uppercase tracking-wide m-0 p-0">Pemerintah Kabupaten Cilacap</h1>
-            <h1 className="text-sm font-bold uppercase tracking-wide m-0 p-0">Kecamatan Cilacap Selatan</h1>
-            <h1 className="text-sm font-bold uppercase tracking-wide m-0 p-0">Kelurahan Tambakreja</h1>
-            <h2 className="text-sm font-bold mt-0.5 m-0 p-0">RT. {surat.rt} &nbsp;&nbsp;&nbsp; RW. 05</h2>
-          </div>
-
-          <div className="text-center mb-5">
-            <h3 className="text-sm font-bold underline uppercase tracking-widest">Surat Keterangan / Pengantar</h3>
-            <p className="font-semibold text-xs mt-0.5">Nomor : {surat.nomor_surat || "148 / ....... / RW.05 / 2026"}</p>
-          </div>
-
-          <div className="text-justify text-xs leading-relaxed">
-            <p className="mb-2">Yang bertanda tangan dibawah ini, menerangkan bahwa :</p>
-            <table className="w-full mb-4 text-xs border-collapse">
-              <tbody>
-                <tr>
-                  <td className="w-6 align-top py-0.5">1.</td>
-                  <td className="w-40 align-top py-0.5">Nama</td>
-                  <td className="w-3 align-top py-0.5">:</td>
-                  <td className="py-0.5 font-bold uppercase">
-                    {surat.nama} 
-                    <span className="ml-2 font-normal normal-case">
-                      {surat.jenis_kelamin?.toLowerCase() === 'lk' || surat.jenis_kelamin?.toLowerCase() === 'laki-laki' ? (
-                        <span><strong>Laki-Laki</strong> / <span className="line-through text-gray-500">Perempuan</span></span>
-                      ) : (
-                        <span><span className="line-through text-gray-500">Laki-Laki</span> / <strong>Perempuan</strong></span>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-                
-                <tr><td className="align-top py-0.5">2.</td><td className="align-top py-0.5">Tempat & Tanggal Lahir</td><td className="align-top py-0.5">:</td><td className="py-0.5">{surat.tempat_lahir}, {surat.tanggal_lahir}</td></tr>
-                <tr><td className="align-top py-0.5">3.</td><td className="align-top py-0.5">Kewarganegaraan & Agama</td><td className="align-top py-0.5">:</td><td className="py-1">WNI / {surat.agama}</td></tr>
-                
-                <tr>
-                  <td className="align-top py-0.5">4.</td>
-                  <td className="align-top py-0.5">Status Perkawinan</td>
-                  <td className="align-top py-0.5">:</td>
-                  <td className="py-0.5 font-bold">
-                    {['Belum Kawin', 'Kawin', 'Duda', 'Janda'].map((st) => {
-                      const isMatch = surat.status_perkawinan?.toLowerCase() === st.toLowerCase();
-                      return (
-                        <span key={st} className="mr-2">
-                          {isMatch ? <u>{st}</u> : <span className="line-through text-gray-500 font-normal">{st}</span>}
-                        </span>
-                      );
-                    })}
-                  </td>
-                </tr>
-
-                <tr><td className="align-top py-0.5">5.</td><td className="align-top py-0.5">Pekerjaan</td><td className="align-top py-0.5">:</td><td className="py-0.5">{surat.pekerjaan}</td></tr>
-                <tr><td className="align-top py-0.5">6.</td><td className="align-top py-0.5">Nama KK</td><td className="align-top py-0.5">:</td><td className="py-0.5 uppercase font-bold">{surat.status_keluarga === 'Kepala Keluarga' ? surat.nama : surat.nama_kk || '...........................................'}</td></tr>
-                <tr><td className="align-top py-0.5">7.</td><td className="align-top py-0.5">Hubungan dengan KK</td><td className="align-top py-0.5">:</td><td className="py-0.5">{surat.status_keluarga}</td></tr>
-                
-                <tr>
-                  <td className="align-top py-0.5">8.</td>
-                  <td className="align-top py-0.5">Tempat Tinggal</td><td className="align-top py-0.5">:</td><td className="align-top py-0.5 capitalize">
-                    {surat.alamat}, RT {surat.rt} / RW 05, Kelurahan Tambakreja, Kecamatan Cilacap Selatan
-                  </td>
-                </tr>
-
-                <tr><td className="align-top py-0.5">9.</td><td className="align-top py-0.5">Kabupaten</td><td className="align-top py-0.5">:</td><td className="align-top py-0.5">Cilacap Propinsi Jawa Tengah</td></tr>
-                <tr><td className="align-top py-0.5">10.</td><td className="align-top py-0.5">Surat Bukti Diri (KTP)</td><td className="align-top py-0.5">:</td><td className="align-top py-0.5 tracking-wider">{surat.nik}</td></tr>
-                <tr><td className="align-top py-0.5">11.</td><td className="align-top py-0.5">Keperluan</td><td className="align-top py-0.5">:</td><td className="align-top py-0.5 font-bold uppercase">{surat.keperluan}</td></tr>
-                <tr><td className="align-top py-0.5">12.</td><td className="align-top py-0.5">Berlaku mulai</td><td className="align-top py-0.5">:</td><td className="align-top py-0.5">{surat.berlakuMulai}</td></tr>
-                <tr><td className="align-top py-0.5">13.</td><td className="align-top py-0.5">Keterangan lain-lain</td><td className="align-top py-0.5">:</td><td className="align-top py-0.5">{surat.keterangan || "-"}</td></tr>
-                <tr><td className="align-top py-0.5">14.</td><td className="align-top py-0.5">Catatan</td><td className="align-top py-0.5">:</td><td className="align-top py-0.5">Bawalah dokumen sesuai dengan persyarat saat ke Kelurahan.</td></tr>
-              </tbody>
-            </table>
-
-            <p className="mb-4">Demikian untuk menjadi periksa bagi yang berkepentingan</p>
           </div>
           
-          <div className="flex justify-between text-center text-xs mt-4">
-            <div className="w-1/2 flex flex-col items-center">
-              <p className="mb-0.5">Mengetahui:</p>
-              <p className="font-bold">Ketua RW 05</p>
-              <div className="h-16 flex items-center justify-center">
-                {surat.status === 'Disetujui RW' ? (
-                  <img src={qrUrlRW} alt="Barcode RW" className="h-14 w-14 object-contain" />
-                ) : null}
-              </div>
-              <p className="font-bold underline uppercase tracking-wider text-[11px]">{namaRwAktif || "........................................"}</p>
+          <div className="flex-1 text-center leading-tight">
+            <h1 className="text-[14px] font-bold uppercase tracking-wide m-0 p-0">Pemerintah Kabupaten Cilacap</h1>
+            <h1 className="text-[14px] font-bold uppercase tracking-wide m-0 p-0">Kecamatan Cilacap Selatan</h1>
+            <h1 className="text-[14px] font-bold uppercase tracking-wide m-0 p-0">Kelurahan Tambakreja</h1>
+            <h2 className="text-[14px] font-bold mt-1 m-0 p-0">RT. {surat.rt} &nbsp;&nbsp;&nbsp; RW. 05</h2>
+          </div>
+
+          <div className="w-[60px] flex-shrink-0"></div>
+        </div>
+
+        {/* JUDUL SURAT (Font diperbesar ke 14px dan 12px) */}
+        <div className="text-center mb-4">
+          <h3 className="text-[14px] font-bold underline uppercase tracking-widest">Surat Keterangan / Pengantar</h3>
+          <p className="font-semibold text-[12px] mt-0.5">Nomor : {surat.nomor_surat || "148 / ....... / RW.05 / 2026"}</p>
+        </div>
+
+        {/* ISI SURAT (Font diperbesar ke 12px, spasi dirapatkan dengan py-[3px] dan leading-relaxed) */}
+        <div className="text-justify text-[12px] leading-relaxed flex-1">
+          <p className="mb-2">Yang bertanda tangan dibawah ini, menerangkan bahwa :</p>
+          <table className="w-full mb-3 text-[12px] border-collapse">
+            <tbody>
+              <tr>
+                <td className="w-6 align-top py-[3px]">1.</td>
+                <td className="w-36 align-top py-[3px]">Nama</td>
+                <td className="w-2 align-top py-[3px]">:</td>
+                <td className="py-[3px] font-bold uppercase">
+                  {surat.nama} 
+                  <span className="ml-2 font-normal normal-case">
+                    {surat.jenis_kelamin?.toLowerCase() === 'lk' || surat.jenis_kelamin?.toLowerCase() === 'laki-laki' ? (
+                      <span><strong>Laki-Laki</strong> / <span className="line-through text-gray-500">Perempuan</span></span>
+                    ) : (
+                      <span><span className="line-through text-gray-500">Laki-Laki</span> / <strong>Perempuan</strong></span>
+                    )}
+                  </span>
+                </td>
+              </tr>
+              
+              <tr><td className="align-top py-[3px]">2.</td><td className="align-top py-[3px]">Tempat & Tgl Lahir</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">{surat.tempat_lahir}, {surat.tanggal_lahir}</td></tr>
+              <tr><td className="align-top py-[3px]">3.</td><td className="align-top py-[3px]">Kewarganegaraan/Agama</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">WNI / {surat.agama}</td></tr>
+              
+              <tr>
+                <td className="align-top py-[3px]">4.</td>
+                <td className="align-top py-[3px]">Status Perkawinan</td>
+                <td className="align-top py-[3px]">:</td>
+                <td className="py-[3px] font-bold">
+                  {['Belum Kawin', 'Kawin', 'Duda', 'Janda'].map((st) => {
+                    const isMatch = surat.status_perkawinan?.toLowerCase() === st.toLowerCase();
+                    return (
+                      <span key={st} className="mr-2">
+                        {isMatch ? <u>{st}</u> : <span className="line-through text-gray-500 font-normal">{st}</span>}
+                      </span>
+                    );
+                  })}
+                </td>
+              </tr>
+
+              <tr><td className="align-top py-[3px]">5.</td><td className="align-top py-[3px]">Pekerjaan</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">{surat.pekerjaan}</td></tr>
+              <tr><td className="align-top py-[3px]">6.</td><td className="align-top py-[3px]">Nama KK</td><td className="align-top py-[3px]">:</td><td className="py-[3px] uppercase font-bold">{surat.status_keluarga === 'Kepala Keluarga' ? surat.nama : surat.nama_kk || '...........................................'}</td></tr>
+              <tr><td className="align-top py-[3px]">7.</td><td className="align-top py-[3px]">Hubungan dengan KK</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">{surat.status_keluarga}</td></tr>
+              
+              <tr>
+                <td className="align-top py-[3px]">8.</td>
+                <td className="align-top py-[3px]">Tempat Tinggal</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px] capitalize">
+                  {surat.alamat}, RT {surat.rt} / RW 05, Kelurahan Tambakreja
+                </td>
+              </tr>
+
+              <tr><td className="align-top py-[3px]">9.</td><td className="align-top py-[3px]">Kabupaten</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]">Cilacap Propinsi Jawa Tengah</td></tr>
+              <tr><td className="align-top py-[3px]">10.</td><td className="align-top py-[3px]">Surat Bukti Diri (KTP)</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px] tracking-wider">{surat.nik}</td></tr>
+              <tr><td className="align-top py-[3px]">11.</td><td className="align-top py-[3px]">Keperluan</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px] font-bold uppercase">{surat.keperluan}</td></tr>
+              <tr><td className="align-top py-[3px]">12.</td><td className="align-top py-[3px]">Berlaku mulai</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]">{surat.berlakuMulai}</td></tr>
+              <tr><td className="align-top py-[3px]">13.</td><td className="align-top py-[3px]">Keterangan lain-lain</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]">{surat.keterangan || "-"}</td></tr>
+              <tr><td className="align-top py-[3px]">14.</td><td className="align-top py-[3px]">Catatan</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]"><strong>Bawalah dokumen sesuai persyarat saat ke Kelurahan.</strong></td></tr>
+            </tbody>
+          </table>
+
+          <p className="mb-0">Demikian untuk menjadi periksa bagi yang berkepentingan</p>
+        </div>
+        
+        {/* AREA TANDA TANGAN (Font diperbesar dari 11px ke 12px) */}
+        <div className="flex justify-between text-center text-[12px] mt-2 pb-2">
+          <div className="w-1/2 flex flex-col items-center justify-end">
+            <p className="mb-1">Mengetahui:</p>
+            <p className="font-bold">Ketua RW 05</p>
+            <div className="h-14 flex items-center justify-center my-1.5">
+              {surat.status === 'Disetujui RW' ? (
+                <img src={qrUrlRW} alt="Barcode RW" crossOrigin="anonymous" className="h-14 w-14 object-contain" />
+              ) : null}
             </div>
-            
-            <div className="w-1/2 flex flex-col items-center">
-              <p className="mb-0.5">Tambakreja, {surat.tanggal || new Date().toLocaleDateString('id-ID')}</p>
-              <p className="font-bold">Ketua RT {surat.rt} RW 05</p>
-              <div className="h-16 flex items-center justify-center">
-                {(surat.status === 'Menunggu RW' || surat.status === 'Disetujui RW') ? (
-                  <img src={qrUrlRT} alt="Barcode RT" className="h-14 w-14 object-contain" />
-                ) : null}
-              </div>
-              <p className="font-bold underline uppercase tracking-wider text-[11px]">{namaRtAktif || "........................................"}</p>
+            <p className="font-bold underline uppercase tracking-wider text-[12px]">{namaRwAktif || "........................................"}</p>
+          </div>
+          
+          <div className="w-1/2 flex flex-col items-center justify-end">
+            <p className="mb-1">Tambakreja, {surat.tanggal || new Date().toLocaleDateString('id-ID')}</p>
+            <p className="font-bold">Ketua RT {surat.rt} RW 05</p>
+            <div className="h-14 flex items-center justify-center my-1.5">
+              {(surat.status === 'Menunggu RW' || surat.status === 'Disetujui RW') ? (
+                <img src={qrUrlRT} alt="Barcode RT" crossOrigin="anonymous" className="h-14 w-14 object-contain" />
+              ) : null}
             </div>
+            <p className="font-bold underline uppercase tracking-wider text-[12px]">{namaRtAktif || "........................................"}</p>
           </div>
         </div>
 
-        <div className="mt-4 pt-2 border-t border-gray-300 text-center text-[9px] text-gray-500 font-sans">
+        {/* FOOTER */}
+        <div className="pt-1.5 border-t border-gray-300 text-center text-[9px] text-gray-500 font-sans mt-auto">
           dicetak dari E-Pantar ( Elektronik Surat Pengantar RT / RW.05 )
         </div>
       </div>
 
+      {/* CSS CETAK BERSIH */}
       <style>{`
         @media print { 
-          body { background-color: white !important; -webkit-print-color-adjust: exact; } 
-          .no-print { display: none !important; } 
-          @page { size: 148mm 210mm; margin: 10mm; } 
-          .surat-container { box-shadow: none !important; width: 100% !important; padding: 0 !important; margin: 0 !important; }
+          @page { 
+            size: 165mm 215mm; 
+            margin: 0mm !important; 
+          }
+          
+          html, body {
+            background-color: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 165mm !important;
+            height: 215mm !important;
+            overflow: hidden !important; 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .no-print { 
+            display: none !important; 
+          } 
+          
+          .cetak-wrapper {
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          .surat-container { 
+            box-shadow: none !important; 
+            border: none !important;
+            background: #ffffff !important;
+            width: 165mm !important; 
+            height: 215mm !important; 
+            margin: 0 auto !important; 
+            padding: 8mm 10mm !important; 
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+          }
         }
       `}</style>
     </div>
