@@ -317,7 +317,7 @@ function CetakSurat({ surat, onKembali }) {
               </tr>
               
               <tr><td className="align-top py-[3px]">2.</td><td className="align-top py-[3px]">Tempat & Tgl Lahir</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">{surat.tempat_lahir}, {surat.tanggal_lahir}</td></tr>
-              <tr><td className="align-top py-[3px]">3.</td><td className="align-top py-[3px]">Kewarganegaraan & Agama</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">WNI / {surat.agama}</td></tr>
+              <tr><td className="align-top py-[3px]">3.</td><td className="align-top py-[3px]">Kewarganegaraan/Agama</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">WNI / {surat.agama}</td></tr>
               
               <tr>
                 <td className="align-top py-[3px]">4.</td>
@@ -351,12 +351,10 @@ function CetakSurat({ surat, onKembali }) {
               <tr><td className="align-top py-[3px]">11.</td><td className="align-top py-[3px]">Keperluan</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px] font-bold uppercase">{surat.keperluan}</td></tr>
               <tr><td className="align-top py-[3px]">12.</td><td className="align-top py-[3px]">Berlaku mulai</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]">{surat.berlakuMulai}</td></tr>
               <tr><td className="align-top py-[3px]">13.</td><td className="align-top py-[3px]">Keterangan lain-lain</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]">{surat.keterangan || "-"}</td></tr>
+              <tr><td className="align-top py-[3px]">14.</td><td className="align-top py-[3px]">Catatan</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]">Bawalah dokumen sesuai dengan persyarat saat ke Kelurahan.</td></tr>
             </tbody>
           </table>
 
-          <div className="bg-gray-100 p-2 rounded border border-gray-300 text-[11px] font-semibold mb-3">
-            <strong>Catatan :</strong> Bawalah dokumen sesuai dengan persyarat saat ke Kelurahan.
-          </div>
 
           <p className="mb-0">Demikian untuk menjadi periksa bagi yang berkepentingan</p>
         </div>
