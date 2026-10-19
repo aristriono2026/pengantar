@@ -14,15 +14,12 @@ const secondaryAuth = getAuth(secondaryApp);
 // 0. MODAL LAMPIRAN / PREVIEW DOKUMEN & FOTO/PDF
 // ==========================================
 function ModalLampiran({ surat, onClose }) {
-  // State untuk menyimpan data file yang sedang dipreview
   const [previewFile, setPreviewFile] = useState(null);
   const [previewLabel, setPreviewLabel] = useState("");
 
   if (!surat) return null;
 
-  // Fungsi saat tombol nama dokumen diklik
   const handlePreview = (fileData, label) => {
-    // Jika file yang sama diklik lagi, tutup preview-nya (toggle)
     if (previewLabel === label) {
       setPreviewFile(null);
       setPreviewLabel("");
@@ -32,7 +29,6 @@ function ModalLampiran({ surat, onClose }) {
     }
   };
 
-  // Komponen untuk me-render list/tombol nama dokumen
   const renderFileItem = (fileData, label) => {
     if (!fileData) return <p className="text-slate-600 italic text-xs px-2 mb-2">Tidak ada lampiran {label}</p>;
     
@@ -57,8 +53,6 @@ function ModalLampiran({ surat, onClose }) {
   return (
     <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex justify-center items-center p-4">
       <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto text-slate-200 shadow-2xl">
-        
-        {/* Header Modal */}
         <div className="flex justify-between items-center border-b border-cyan-500/30 pb-4 mb-6">
           <div>
             <h3 className="text-lg font-black text-cyan-400">DAFTAR LAMPIRAN DOKUMEN</h3>
@@ -67,7 +61,6 @@ function ModalLampiran({ surat, onClose }) {
           <button onClick={onClose} className="text-rose-400 font-bold px-4 py-2 bg-rose-500/10 rounded-xl hover:bg-rose-500/20">Tutup ✕</button>
         </div>
         
-        {/* List Nama-Nama Dokumen (Klik untuk buka) */}
         <div className="mb-2">
           {renderFileItem(surat.ktp, "KTP Warga")}
           {renderFileItem(surat.kk, "Kartu Keluarga (KK)")}
@@ -79,7 +72,6 @@ function ModalLampiran({ surat, onClose }) {
           ))}
         </div>
 
-        {/* Area Penampil Gambar / PDF (Hanya muncul jika salah satu dokumen diklik) */}
         {previewFile && (
           <div className="mt-4 p-4 border border-cyan-500/40 rounded-2xl bg-black/60 animate-fade-in-up">
             <div className="flex justify-between items-center mb-3">
@@ -100,7 +92,6 @@ function ModalLampiran({ surat, onClose }) {
             )}
           </div>
         )}
-
       </div>
     </div>
   );
@@ -121,7 +112,7 @@ function ModalVerifikasiDetail({ surat, onClose, onKonfirmasi, judulTombolAksi, 
         <div className="flex justify-between items-center border-b border-cyan-500/30 pb-4 mb-6">
           <div>
             <h2 className="text-xl font-black text-cyan-400">LEMBAR VERIFIKASI DATA PENGANTAR</h2>
-            <p className="text-xs text-slate-400 uppercase tracking-wider mt-0.5">Periksa keabsahan 13 poin data warga beserta dokumen lampirannya</p>
+            <p className="text-xs text-slate-400 uppercase tracking-wider mt-0.5">Periksa keabsahan data warga beserta dokumen lampirannya</p>
           </div>
           <button onClick={onClose} className="text-rose-400 font-bold px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl text-sm transition-all">Tutup ✕</button>
         </div>
@@ -166,7 +157,7 @@ function ModalVerifikasiDetail({ surat, onClose, onKonfirmasi, judulTombolAksi, 
 }
 
 // ==========================================
-// 1. KOMPONEN CETAK (UKURAN FONT DIPERBESAR & SPASI DIRAPIKAN)
+// 1. KOMPONEN CETAK
 // ==========================================
 function CetakSurat({ surat, onKembali }) {
   const [namaRtAktif, setNamaRtAktif] = useState(surat.nama_rt || '');
@@ -248,8 +239,6 @@ function CetakSurat({ surat, onKembali }) {
 
   return (
     <div className="cetak-wrapper bg-slate-900 print:bg-white print:py-0 print:min-h-0 min-h-screen py-6 font-serif text-black w-full absolute top-0 left-0 z-[100] flex flex-col items-center overflow-auto">
-      
-      {/* TOMBOL AKSI */}
       <div className="max-w-[165mm] w-full mb-4 no-print flex justify-between px-2 font-sans gap-2">
         <button onClick={onKembali} className="bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2 rounded-xl shadow-lg transition-all text-xs">← Kembali</button>
         <div className="flex gap-2">
@@ -265,10 +254,7 @@ function CetakSurat({ surat, onKembali }) {
         </div>
       </div>
 
-      {/* AREA KERTAS SURAT */}
       <div ref={kertasSuratRef} className="surat-container bg-white px-8 py-6 shadow-2xl mx-auto flex flex-col relative" style={{ width: '165mm', height: '215mm' }}>
-        
-        {/* KOP SURAT (Font diperbesar dari 13px ke 14px) */}
         <div className="flex items-center justify-between border-b-[2.5px] border-black pb-2 mb-3">
           <div className="w-[60px] flex-shrink-0 flex justify-start">
             <img 
@@ -289,13 +275,11 @@ function CetakSurat({ surat, onKembali }) {
           <div className="w-[60px] flex-shrink-0"></div>
         </div>
 
-        {/* JUDUL SURAT (Font diperbesar ke 14px dan 12px) */}
         <div className="text-center mb-4">
           <h3 className="text-[14px] font-bold underline uppercase tracking-widest">Surat Keterangan / Pengantar</h3>
           <p className="font-semibold text-[12px] mt-0.5">Nomor : {surat.nomor_surat || "148 / ....... / RW.05 / 2026"}</p>
         </div>
 
-        {/* ISI SURAT (Font diperbesar ke 12px, spasi dirapatkan dengan py-[3px] dan leading-relaxed) */}
         <div className="text-justify text-[12px] leading-relaxed flex-1">
           <p className="mb-2">Yang bertanda tangan dibawah ini, menerangkan bahwa :</p>
           <table className="w-full mb-3 text-[12px] border-collapse">
@@ -317,7 +301,7 @@ function CetakSurat({ surat, onKembali }) {
               </tr>
               
               <tr><td className="align-top py-[3px]">2.</td><td className="align-top py-[3px]">Tempat & Tgl Lahir</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">{surat.tempat_lahir}, {surat.tanggal_lahir}</td></tr>
-              <tr><td className="align-top py-[3px]">3.</td><td className="align-top py-[3px]">Kewarganegaraan/Agama</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">WNI / {surat.agama}</td></tr>
+              <tr><td className="align-top py-[3px]">3.</td><td className="align-top py-[3px]">Kewarganegaraan & Agama</td><td className="align-top py-[3px]">:</td><td className="py-[3px]">WNI / {surat.agama}</td></tr>
               
               <tr>
                 <td className="align-top py-[3px]">4.</td>
@@ -351,14 +335,16 @@ function CetakSurat({ surat, onKembali }) {
               <tr><td className="align-top py-[3px]">11.</td><td className="align-top py-[3px]">Keperluan</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px] font-bold uppercase">{surat.keperluan}</td></tr>
               <tr><td className="align-top py-[3px]">12.</td><td className="align-top py-[3px]">Berlaku mulai</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]">{surat.berlakuMulai}</td></tr>
               <tr><td className="align-top py-[3px]">13.</td><td className="align-top py-[3px]">Keterangan lain-lain</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]">{surat.keterangan || "-"}</td></tr>
-              <tr><td className="align-top py-[3px]">14.</td><td className="align-top py-[3px]">Catatan</td><td className="align-top py-[3px]">:</td><td className="align-top py-[3px]"><strong>Bawalah dokumen sesuai persyarat saat ke Kelurahan.</strong></td></tr>
             </tbody>
           </table>
+
+          <div className="bg-gray-100 p-2 rounded border border-gray-300 text-[11px] font-semibold mb-3">
+            <strong>Catatan :</strong> Bawalah dokumen sesuai dengan persyarat saat ke Kelurahan.
+          </div>
 
           <p className="mb-0">Demikian untuk menjadi periksa bagi yang berkepentingan</p>
         </div>
         
-        {/* AREA TANDA TANGAN (Font diperbesar dari 11px ke 12px) */}
         <div className="flex justify-between text-center text-[12px] mt-2 pb-2">
           <div className="w-1/2 flex flex-col items-center justify-end">
             <p className="mb-1">Mengetahui:</p>
@@ -383,13 +369,11 @@ function CetakSurat({ surat, onKembali }) {
           </div>
         </div>
 
-        {/* FOOTER */}
         <div className="pt-1.5 border-t border-gray-300 text-center text-[9px] text-gray-500 font-sans mt-auto">
           dicetak dari E-Pantar ( Elektronik Surat Pengantar RT / RW.05 )
         </div>
       </div>
 
-      {/* CSS CETAK BERSIH */}
       <style>{`
         @media print { 
           @page { 
@@ -519,17 +503,30 @@ function DashboardRT({ onCetak, onLogout }) {
   };
 
   const handleCari = async (e) => {
-    e.preventDefault(); setEditModeId(null); const nikBersih = cariNik.trim();
+    e.preventDefault(); 
+    setEditModeId(null); 
+    const nikBersih = cariNik.trim();
     const q = query(collection(db, "warga"), where("nik", "==", nikBersih)); 
     const querySnapshot = await getDocs(q);
     
-    const baseData = { nik: nikBersih, rt: currentUserRT, rw: '05', keperluan: '', berlakuMulai: hitungMasaBerlaku(), keterangan: '-' };
+    const baseData = { nik: nikBersih, rw: '05', keperluan: '', berlakuMulai: hitungMasaBerlaku(), keterangan: '-' };
     
     if (!querySnapshot.empty) {
-      let warga = null; querySnapshot.forEach(doc => { warga = doc.data(); });
-      setStatusPencarian('ketemu'); setFormData({ ...warga, ...baseData, nama_kk: warga.nama_kk || '' });
+      let warga = null; 
+      querySnapshot.forEach(doc => { warga = doc.data(); });
+
+      // PEMBATASAN OTORITAS RT: Validasi agar akun RT hanya dapat mengakses warga di wilayah RT-nya
+      if (warga.rt && Number(warga.rt) !== Number(currentUserRT)) {
+        alert(`AKSES DITOLAK!\n\nNIK ${nikBersih} atas nama ${warga.nama} adalah warga terdaftar di RT ${warga.rt}.\n\nAnda tidak memiliki izin untuk memproses pengajuan surat untuk warga di luar lingkup RT ${currentUserRT}.`);
+        setStatusPencarian(null);
+        return;
+      }
+
+      setStatusPencarian('ketemu'); 
+      setFormData({ ...warga, ...baseData, rt: warga.rt || currentUserRT, nama_kk: warga.nama_kk || '' });
     } else { 
-      setStatusPencarian('baru'); setFormData({ ...baseData, nama: '', jenis_kelamin: 'Lk', tempat_lahir: '', tanggal_lahir: '', alamat: '', status_keluarga: '', status_perkawinan: 'Belum Kawin', agama: '', pekerjaan: '', nama_kk: '' }); 
+      setStatusPencarian('baru'); 
+      setFormData({ ...baseData, rt: currentUserRT, nama: '', jenis_kelamin: 'Lk', tempat_lahir: '', tanggal_lahir: '', alamat: '', status_keluarga: '', status_perkawinan: 'Belum Kawin', agama: '', pekerjaan: '', nama_kk: '' }); 
     }
   };
 
@@ -674,7 +671,7 @@ function DashboardRT({ onCetak, onLogout }) {
             {statusPencarian && (
               <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 p-6 rounded-3xl space-y-4">
                 <div className="flex justify-between items-center border-b border-cyan-500/30 pb-2 mb-4">
-                  <h2 className="text-lg font-bold text-cyan-400">{editModeId ? "MODE EDIT DATA" : "DATA PENGANTAR (13 KOLOM)"}</h2>
+                  <h2 className="text-lg font-bold text-cyan-400">{editModeId ? "MODE EDIT DATA" : "DATA PENGANTAR (14 KOLOM)"}</h2>
                   {editModeId && <button type="button" onClick={() => {setEditModeId(null); setStatusPencarian(null)}} className="text-rose-400 font-bold text-xs bg-rose-500/10 px-3 py-1.5 rounded-lg">BATAL EDIT</button>}
                 </div>
                 
@@ -688,11 +685,15 @@ function DashboardRT({ onCetak, onLogout }) {
                   <div><label className={labelClass}>7. Status Kawin</label><select name="status_perkawinan" value={formData.status_perkawinan} onChange={e=>setFormData({...formData, status_perkawinan: e.target.value})} className={inputClass}><option className="bg-slate-900" value="Belum Kawin">Belum Kawin</option><option className="bg-slate-900" value="Kawin">Kawin</option><option className="bg-slate-900" value="Duda">Duda</option><option className="bg-slate-900" value="Janda">Janda</option></select></div>
                   <div><label className={labelClass}>8. Status di KK</label><input name="status_keluarga" value={formData.status_keluarga} onChange={e=>setFormData({...formData, status_keluarga: e.target.value})} className={inputClass} required/></div>
                   <div><label className={labelClass}>9. Nama Kepala Keluarga</label><input name="nama_kk" value={formData.nama_kk} onChange={e=>setFormData({...formData, nama_kk: e.target.value})} className={inputClass} /></div>
-                  <div className="md:col-span-3"><label className={labelClass}>10. Alamat (Jalan/Blok)</label><input name="alamat" value={formData.alamat} onChange={e=>setFormData({...formData, alamat: e.target.value})} className={inputClass} required/></div>
                   
-                  <div><label className={labelClass}>11. Keperluan</label><input name="keperluan" value={formData.keperluan} onChange={e=>setFormData({...formData, keperluan: e.target.value})} className={`${inputClass} border-cyan-400 font-bold uppercase`} required/></div>
-                  <div><label className={labelClass}>12. Berlaku Mulai (3 Bulan)</label><input name="berlakuMulai" value={formData.berlakuMulai} onChange={e=>setFormData({...formData, berlakuMulai: e.target.value})} className={inputClass} /></div>
-                  <div><label className={labelClass}>13. Keterangan lain-lain</label><input name="keterangan" value={formData.keterangan} onChange={e=>setFormData({...formData, keterangan: e.target.value})} className={inputClass} placeholder="Contoh: -"/></div>
+                  <div className="md:col-span-2"><label className={labelClass}>10. Alamat (Jalan/Blok)</label><input name="alamat" value={formData.alamat} onChange={e=>setFormData({...formData, alamat: e.target.value})} className={inputClass} required/></div>
+                  
+                  {/* Kolom RT dibuat Read-Only agar RT hanya mengurus warga di wilayahnya */}
+                  <div><label className={labelClass}>11. RT (Asal Warga)</label><input name="rt" value={formData.rt} readOnly className={`${inputClass} bg-black/20 text-slate-500 cursor-not-allowed`} title="Warga wajib diproses oleh RT masing-masing" required/></div>
+                  
+                  <div><label className={labelClass}>12. Keperluan</label><input name="keperluan" value={formData.keperluan} onChange={e=>setFormData({...formData, keperluan: e.target.value})} className={`${inputClass} border-cyan-400 font-bold uppercase`} required/></div>
+                  <div><label className={labelClass}>13. Berlaku Mulai (3 Bulan)</label><input name="berlakuMulai" value={formData.berlakuMulai} onChange={e=>setFormData({...formData, berlakuMulai: e.target.value})} className={inputClass} /></div>
+                  <div><label className={labelClass}>14. Keterangan lain-lain</label><input name="keterangan" value={formData.keterangan} onChange={e=>setFormData({...formData, keterangan: e.target.value})} className={inputClass} placeholder="Contoh: -"/></div>
                 </div>
 
                 <div className="mt-6 p-4 bg-blue-900/20 rounded-2xl border border-cyan-500/20 space-y-4">
@@ -741,7 +742,7 @@ function DashboardRT({ onCetak, onLogout }) {
               <table className="w-full text-left text-[11px] border-collapse whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-cyan-500/30 text-cyan-300">
-                    <th className="p-2">NIK</th><th className="p-2">Nama</th><th className="p-2">L/P</th><th className="p-2">TTL</th>
+                    <th className="p-2">RT</th><th className="p-2">NIK</th><th className="p-2">Nama</th><th className="p-2">L/P</th><th className="p-2">TTL</th>
                     <th className="p-2">Agama</th><th className="p-2">Kerja</th><th className="p-2">Kawin</th><th className="p-2">Stt.KK</th>
                     <th className="p-2">Nm.KK</th><th className="p-2">Alamat</th><th className="p-2">Keperluan</th><th className="p-2">Berlaku</th>
                     <th className="p-2 text-center">Lampiran</th><th className="p-2 text-center">Status</th><th className="p-2 text-center">Aksi</th>
@@ -750,6 +751,7 @@ function DashboardRT({ onCetak, onLogout }) {
                 <tbody>
                   {riwayatSurat.map(s => (
                     <tr key={s.id} className="border-b border-white/5 hover:bg-white/5 text-slate-300">
+                      <td className="p-2 text-cyan-300 font-bold bg-cyan-900/20">RT {s.rt}</td>
                       <td className="p-2 font-mono">{s.nik}</td><td className="p-2 font-bold text-white">{s.nama}</td><td className="p-2">{s.jenis_kelamin}</td><td className="p-2">{s.tempat_lahir}, {s.tanggal_lahir}</td>
                       <td className="p-2">{s.agama}</td><td className="p-2">{s.pekerjaan}</td><td className="p-2">{s.status_perkawinan}</td><td className="p-2">{s.status_keluarga}</td>
                       <td className="p-2">{s.nama_kk}</td><td className="p-2 truncate max-w-[100px]">{s.alamat}</td><td className="p-2 font-bold uppercase">{s.keperluan}</td><td className="p-2">{s.berlakuMulai}</td>
@@ -912,7 +914,7 @@ function DashboardRW({ onCetak, onLogout }) {
             <div className="flex justify-between items-center border-b border-cyan-500/30 pb-4 mb-6">
               <div>
                 <h2 className="text-xl font-black text-cyan-400">LEMBAR VERIFIKASI RW - RT {suratVerifikasiRw.rt}</h2>
-                <p className="text-xs text-slate-400 uppercase tracking-wider mt-0.5">Periksa 13 poin data warga & lampiran sebelum memberikan persetujuan</p>
+                <p className="text-xs text-slate-400 uppercase tracking-wider mt-0.5">Periksa 14 poin data warga & lampiran sebelum memberikan persetujuan</p>
               </div>
               <button onClick={() => setSuratVerifikasiRw(null)} className="text-rose-400 font-bold px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl text-sm transition-all">Tutup ✕</button>
             </div>
@@ -1007,7 +1009,8 @@ function DashboardRW({ onCetak, onLogout }) {
                 <tbody>
                   {semuaSurat.filter(s => s.status !== 'Draft').map(s => (
                     <tr key={s.id} className="border-b border-white/5 text-slate-300">
-                      <td className="p-2 text-cyan-300">RT {s.rt}</td><td className="p-2 font-mono">{s.nik}</td><td className="p-2 font-bold text-white">{s.nama}</td><td className="p-2">{s.jenis_kelamin}</td><td className="p-2">{s.tempat_lahir}, {s.tanggal_lahir}</td>
+                      <td className="p-2 text-cyan-300 font-bold bg-cyan-900/20">RT {s.rt}</td>
+                      <td className="p-2 font-mono">{s.nik}</td><td className="p-2 font-bold text-white">{s.nama}</td><td className="p-2">{s.jenis_kelamin}</td><td className="p-2">{s.tempat_lahir}, {s.tanggal_lahir}</td>
                       <td className="p-2">{s.agama}</td><td className="p-2">{s.pekerjaan}</td><td className="p-2">{s.status_perkawinan}</td><td className="p-2">{s.status_keluarga}</td>
                       <td className="p-2">{s.nama_kk}</td><td className="p-2 truncate max-w-[80px]">{s.alamat}</td><td className="p-2 font-bold uppercase">{s.keperluan}</td><td className="p-2">{s.berlakuMulai}</td>
                       
@@ -1042,7 +1045,7 @@ function DashboardRW({ onCetak, onLogout }) {
                 <thead className="border-b border-cyan-500/30 text-cyan-300"><tr><th className="p-2">NIK</th><th className="p-2">Nama</th><th className="p-2">RT</th><th className="p-2">Aksi</th></tr></thead>
                 <tbody>
                   {dataWarga.map(w => (
-                    <tr key={w.id} className="border-b border-white/5"><td className="p-2">{w.nik}</td><td className="p-2 font-bold">{w.nama}</td><td className="p-2">RT {w.rt}</td><td className="p-2"><button className="text-cyan-400 border border-cyan-500/50 px-2 py-1 rounded">Edit</button></td></tr>
+                    <tr key={w.id} className="border-b border-white/5"><td className="p-2">{w.nik}</td><td className="p-2 font-bold">{w.nama}</td><td className="p-2 text-cyan-300">RT {w.rt}</td><td className="p-2"><button className="text-cyan-400 border border-cyan-500/50 px-2 py-1 rounded">Edit</button></td></tr>
                   ))}
                 </tbody>
               </table>
@@ -1081,7 +1084,7 @@ function DashboardRW({ onCetak, onLogout }) {
 }
 
 // ==========================================
-// 4. DASBOR ADMIN (SESUAI GAMBAR DENGAN EMAIL/USERNAME UNTUK aris.triono.2024@gmail.com)
+// 4. DASBOR ADMIN
 // ==========================================
 function DashboardAdmin({ onLogout }) {
   const [usersList, setUsersList] = useState([]);
@@ -1102,7 +1105,7 @@ function DashboardAdmin({ onLogout }) {
     e.preventDefault(); setLoading(true);
     try {
       let emailDaftar = username.trim().toLowerCase();
-      if (!emailDaftar.includes('@')) emailDaftar += '@tambakreja.com';
+      if (!emailDaftar.includes('@')) emailDaftar += '@rw05.com';
       
       const cred = await createUserWithEmailAndPassword(secondaryAuth, emailDaftar, password);
       
@@ -1158,7 +1161,6 @@ function DashboardAdmin({ onLogout }) {
       <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Form Buat Akun Baru */}
           <div className="lg:col-span-5 bg-white border border-slate-200/80 p-7 rounded-3xl shadow-xl">
             <div className="flex items-center gap-2.5 mb-6 border-b border-slate-100 pb-4">
               <div className="p-2 bg-blue-50 text-blue-600 rounded-xl text-lg">👤</div>
@@ -1197,7 +1199,6 @@ function DashboardAdmin({ onLogout }) {
             </form>
           </div>
 
-          {/* Tabel Daftar Akun */}
           <div className="lg:col-span-7 bg-white border border-slate-200/80 p-6 rounded-3xl shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
@@ -1238,7 +1239,7 @@ function DashboardAdmin({ onLogout }) {
 }
 
 // ==========================================
-// 5. KONTROLER UTAMA SPA (TERMASUK DUKUNGAN aris.triono.2024@gmail.com)
+// 5. KONTROLER UTAMA SPA
 // ==========================================
 export default function DashboardTerpadu() {
   const [view, setView] = useState('dashboard'); 
@@ -1259,7 +1260,6 @@ export default function DashboardTerpadu() {
 
   if (view === 'cetak') return <CetakSurat surat={suratCetak} onKembali={handleKembali} />;
   
-  // Deteksi jika role 'admin' ATAU email pengguna adalah 'aris.triono.2024@gmail.com'
   if (userRole === 'admin' || userRole === 'administrator' || currentEmail === 'aris.triono.2024@gmail.com') {
     return <DashboardAdmin onLogout={handleLogout} />;
   }
