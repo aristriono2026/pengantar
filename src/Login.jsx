@@ -60,8 +60,9 @@ const handleLogin = async (e) => {
           <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-cyan-300/30">
             <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
           </div>
-          <h1 className="text-2xl font-black text-white tracking-widest">PORTAL <span className="text-cyan-400">ADMIN</span></h1>
-          <p className="text-cyan-500/70 text-xs mt-2 uppercase tracking-widest font-bold">RW 05 Kelurahan Tambakreja</p>
+          <h1 className="text-2xl font-black text-white tracking-widest">E - PANTAR <span className="text-cyan-400">RW 05</span></h1>
+          <p className="text-cyan-500/70 text-xs mt-2 uppercase tracking-widest font-bold">Elektronik - Pengantar RW.05</p>
+          <p className="text-cyan-500/70 text-xs mt-2 uppercase tracking-widest font-bold">Kelurahan Tambakreja</p>
         </div>
 
         {error && (
