@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, db, firebaseConfig } from './firebase'; 
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc, getDoc, limit } from 'firebase/firestore';
 import { updatePassword, signOut, getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { initializeApp } from 'firebase/app';
 import html2pdf from 'html2pdf.js';
@@ -47,7 +47,6 @@ function FooterSosmed() {
       </div>
       
       <p className="text-xs font-bold text-slate-300 mt-1">RUKUN WARGA 05 - KELURAHAN TAMBAKREJA</p>
-      <p className="text-[11px] text-slate-400">Created by Aris Triono</p>
     </footer>
   );
 }
@@ -534,6 +533,7 @@ function DashboardRT({ onCetak, onLogout }) {
   const [statusPencarian, setStatusPencarian] = useState(null); 
   const [riwayatSurat, setRiwayatSurat] = useState([]);
   const [dataWargaRt, setDataWargaRt] = useState([]);
+  const [loadingWargaRt, setLoadingWargaRt] = useState(false);
   const [editModeId, setEditModeId] = useState(null);
   const [namaPejabatRt, setNamaPejabatRt] = useState('');
   const [selectedModalSurat, setSelectedModalSurat] = useState(null);
@@ -550,6 +550,7 @@ function DashboardRT({ onCetak, onLogout }) {
   const cameraInputKtpRef = useRef(null);
   const cameraInputKkRef = useRef(null);
 
+  // RIWAYAT SURAT DIJAGA REALTIME (Jumlah surat sedikit, hemat kuota)
   useEffect(() => {
     const q = query(collection(db, "surat"), where("rt_pengaju", "==", `RT ${currentUserRT}`));
     return onSnapshot(q, (snapshot) => { 
@@ -558,24 +559,43 @@ function DashboardRT({ onCetak, onLogout }) {
     });
   }, [currentUserRT]);
 
-  // PENYESUAIAN PENCATATAN RT MULTI-FORMAT ("001" SD "013", 1 SD 13)
-  useEffect(() => {
-    const unsubWarga = onSnapshot(collection(db, "warga"), (snapshot) => {
-      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  // OPTIMASI KUOTA UTAMA: Mengunduh data warga terfilter RT via getDocs HANYA saat tab 'warga' dibuka
+  const fetchWargaRtSpesifik = async () => {
+    setLoadingWargaRt(true);
+    try {
       const targetRtNum = parseInt(currentUserRT, 10);
+      if (isNaN(targetRtNum)) {
+        setLoadingWargaRt(false);
+        return;
+      }
 
-      const filteredByRt = list.filter(w => {
-        if (w.rt === undefined || w.rt === null || w.rt === '') return false;
-        return parseInt(w.rt, 10) === targetRtNum;
-      });
+      const targetRtStr1 = String(targetRtNum);
+      const targetRtStr2 = String(targetRtNum).padStart(2, '0');
+      const targetRtStr3 = String(targetRtNum).padStart(3, '0');
 
-      setDataWargaRt(filteredByRt);
-    }, (error) => {
-      console.error("Gagal mengambil data warga dari Firestore:", error);
-    });
+      const possibleRts = Array.from(new Set([targetRtNum, targetRtStr1, targetRtStr2, targetRtStr3, currentUserRT]));
 
-    return () => unsubWarga();
-  }, [currentUserRT]);
+      // Query langsung di level server Firestore untuk kriteria RT ini
+      const q = query(
+        collection(db, "warga"), 
+        where("rt", "in", possibleRts)
+      );
+
+      const snapshot = await getDocs(q); // 1x Baca, HANYA memuat ~100 warga RT ini, BUKAN 4.000 warga
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setDataWargaRt(list);
+    } catch (error) {
+      console.error("Gagal memuat data warga RT:", error);
+    } finally {
+      setLoadingWargaRt(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeMenu === 'warga') {
+      fetchWargaRtSpesifik();
+    }
+  }, [currentUserRT, activeMenu]);
 
   useEffect(() => {
     if (currentUid) {
@@ -595,6 +615,7 @@ function DashboardRT({ onCetak, onLogout }) {
     return `${formatTgl(hariIni)} s/d ${formatTgl(tigaBulanLagi)}`;
   };
 
+  // OPTIMASI: Pencarian NIK di Formulir RT langsung query 1 dokumen spesifik
   const handleCari = async (e, nikParam) => {
     if (e) e.preventDefault(); 
     setEditModeId(null); 
@@ -602,7 +623,7 @@ function DashboardRT({ onCetak, onLogout }) {
     if (!nikBersih) return;
 
     const q = query(collection(db, "warga"), where("nik", "==", nikBersih)); 
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await getDocs(q); // Hanya membaca 1 dokumen yang dicari
     
     const baseData = { nik: nikBersih, rw: '05', keperluan: '', berlakuMulai: hitungMasaBerlaku(), keterangan: '-' };
     
@@ -956,10 +977,18 @@ function DashboardRT({ onCetak, onLogout }) {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-cyan-500/30 pb-4">
                 <div>
                   <h2 className="text-lg font-bold text-cyan-400 tracking-wider uppercase">DATABASE WARGA RT {currentUserRT}</h2>
-                  <p className="text-xs text-slate-400">Menampilkan data warga terdaftar yang dimuat langsung dari database RT {currentUserRT}</p>
+                  <p className="text-xs text-slate-400">Menampilkan data warga terdaftar yang dimuat hemat kuota dari database RT {currentUserRT}</p>
                 </div>
-                <div className="text-xs text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 px-3 py-1.5 rounded-xl font-bold">
-                  Total: {filteredWargaRt.length} Warga
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={fetchWargaRtSpesifik} 
+                    className="text-xs bg-cyan-800 hover:bg-cyan-700 text-white font-bold px-3 py-1.5 rounded-xl transition-all"
+                  >
+                    🔄 Muat Ulang
+                  </button>
+                  <div className="text-xs text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 px-3 py-1.5 rounded-xl font-bold">
+                    Total: {filteredWargaRt.length} Warga
+                  </div>
                 </div>
               </div>
 
@@ -991,60 +1020,64 @@ function DashboardRT({ onCetak, onLogout }) {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="border-b border-cyan-500/30 text-cyan-300 bg-black/20">
-                      <th className="p-3">No</th>
-                      <th className="p-3">NIK</th>
-                      <th className="p-3">Nama Lengkap</th>
-                      <th className="p-3">L/P</th>
-                      <th className="p-3">Tempat, Tgl Lahir</th>
-                      <th className="p-3">Agama</th>
-                      <th className="p-3">Pekerjaan</th>
-                      <th className="p-3">Alamat</th>
-                      <th className="p-3">RT</th>
-                      <th className="p-3">RW</th>
-                      <th className="p-3 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedWargaRt.length > 0 ? (
-                      paginatedWargaRt.map((w, idx) => (
-                        <tr key={w.id || idx} className="border-b border-white/5 hover:bg-white/5 text-slate-300">
-                          <td className="p-3 text-slate-500">
-                            {itemsPerPageWarga === 'semua' ? idx + 1 : (currentPageWarga - 1) * itemsPerPageWarga + idx + 1}
-                          </td>
-                          <td className="p-3 font-mono text-cyan-200">{w.nik}</td>
-                          <td className="p-3 font-bold text-white uppercase">{w.nama}</td>
-                          <td className="p-3">{w.jenis_kelamin === 'Lk' ? 'L' : 'P'}</td>
-                          <td className="p-3">{w.tempat_lahir}, {w.tanggal_lahir}</td>
-                          <td className="p-3">{w.agama}</td>
-                          <td className="p-3">{w.pekerjaan}</td>
-                          
-                          {/* KOLOM TERPISAH: ALAMAT, RT, RW */}
-                          <td className="p-3 truncate max-w-[150px]">{w.alamat}</td>
-                          <td className="p-3 font-bold text-cyan-300">RT {w.rt || currentUserRT}</td>
-                          <td className="p-3 font-bold text-cyan-300">RW {w.rw || '05'}</td>
-
-                          <td className="p-3 text-center">
-                            <button 
-                              onClick={() => handleBuatSuratDariWarga(w)} 
-                              className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-md transition-all"
-                            >
-                              ➕ Buat Surat
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="11" className="text-center py-8 text-slate-500 italic">Tidak ada data warga yang cocok dengan pencarian di database RT {currentUserRT}.</td>
+              {loadingWargaRt ? (
+                <div className="text-center py-12 text-cyan-400 font-bold animate-pulse">⏳ Memuat data warga RT {currentUserRT}...</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b border-cyan-500/30 text-cyan-300 bg-black/20">
+                        <th className="p-3">No</th>
+                        <th className="p-3">NIK</th>
+                        <th className="p-3">Nama Lengkap</th>
+                        <th className="p-3">L/P</th>
+                        <th className="p-3">Tempat, Tgl Lahir</th>
+                        <th className="p-3">Agama</th>
+                        <th className="p-3">Pekerjaan</th>
+                        <th className="p-3">Alamat</th>
+                        <th className="p-3">RT</th>
+                        <th className="p-3">RW</th>
+                        <th className="p-3 text-center">Aksi</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {paginatedWargaRt.length > 0 ? (
+                        paginatedWargaRt.map((w, idx) => (
+                          <tr key={w.id || idx} className="border-b border-white/5 hover:bg-white/5 text-slate-300">
+                            <td className="p-3 text-slate-500">
+                              {itemsPerPageWarga === 'semua' ? idx + 1 : (currentPageWarga - 1) * itemsPerPageWarga + idx + 1}
+                            </td>
+                            <td className="p-3 font-mono text-cyan-200">{w.nik}</td>
+                            <td className="p-3 font-bold text-white uppercase">{w.nama}</td>
+                            <td className="p-3">{w.jenis_kelamin === 'Lk' ? 'L' : 'P'}</td>
+                            <td className="p-3">{w.tempat_lahir}, {w.tanggal_lahir}</td>
+                            <td className="p-3">{w.agama}</td>
+                            <td className="p-3">{w.pekerjaan}</td>
+                            
+                            {/* KOLOM TERPISAH: ALAMAT, RT, RW */}
+                            <td className="p-3 truncate max-w-[150px]">{w.alamat}</td>
+                            <td className="p-3 font-bold text-cyan-300">RT {w.rt || currentUserRT}</td>
+                            <td className="p-3 font-bold text-cyan-300">RW {w.rw || '05'}</td>
+
+                            <td className="p-3 text-center">
+                              <button 
+                                onClick={() => handleBuatSuratDariWarga(w)} 
+                                className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-md transition-all"
+                              >
+                                ➕ Buat Surat
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="11" className="text-center py-8 text-slate-500 italic">Tidak ada data warga yang cocok dengan pencarian di database RT {currentUserRT}.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {itemsPerPageWarga !== 'semua' && totalPagesWargaRt > 1 && (
                 <div className="flex justify-between items-center pt-2 text-xs text-slate-400">
@@ -1111,6 +1144,7 @@ function DashboardRW({ onCetak, onLogout }) {
   const [activeMenu, setActiveMenu] = useState('antrian');
   const [semuaSurat, setSemuaSurat] = useState([]);
   const [dataWarga, setDataWarga] = useState([]);
+  const [loadingWargaRw, setLoadingWargaRw] = useState(false);
   const [namaPejabatRw, setNamaPejabatRw] = useState('');
   const [selectedModalSurat, setSelectedModalSurat] = useState(null);
   const [suratVerifikasiRw, setSuratVerifikasiRw] = useState(null);
@@ -1122,11 +1156,47 @@ function DashboardRW({ onCetak, onLogout }) {
   const [itemsPerPageWargaRw, setItemsPerPageWargaRw] = useState(10);
   const [currentPageWargaRw, setCurrentPageWargaRw] = useState(1);
 
+  // RIWAYAT SURAT DIJAGA REALTIME (Jumlah surat sedikit)
   useEffect(() => {
     const unsubSurat = onSnapshot(query(collection(db, "surat"), where("rw", "==", "05")), snap => setSemuaSurat(snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.timestamp - a.timestamp)));
-    const unsubWarga = onSnapshot(collection(db, "warga"), snap => setDataWarga(snap.docs.map(d => ({id: d.id, ...d.data()}))));
-    return () => { unsubSurat(); unsubWarga(); };
+    return () => unsubSurat();
   }, []);
+
+  // OPTIMASI KUOTA UTAMA (RW): Memuat data warga menggunakan getDocs + limit(150)
+  const fetchWargaRwOptimized = async () => {
+    if (activeMenu !== 'warga') return;
+
+    setLoadingWargaRw(true);
+    try {
+      let q;
+      if (filterRtWargaRw !== 'semua') {
+        const rtNum = parseInt(filterRtWargaRw, 10);
+        const rtStr1 = String(rtNum);
+        const rtStr2 = String(rtNum).padStart(2, '0');
+        const rtStr3 = String(rtNum).padStart(3, '0');
+        const possibleRts = Array.from(new Set([rtNum, rtStr1, rtStr2, rtStr3, filterRtWargaRw]));
+
+        q = query(
+          collection(db, "warga"), 
+          where("rt", "in", possibleRts),
+          limit(150)
+        );
+      } else {
+        q = query(collection(db, "warga"), limit(150));
+      }
+
+      const snap = await getDocs(q); // Hanya membaca max 150 dokumen per pencarian
+      setDataWarga(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error("Gagal memuat data warga RW:", err);
+    } finally {
+      setLoadingWargaRw(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWargaRwOptimized();
+  }, [activeMenu, filterRtWargaRw]);
 
   useEffect(() => {
     if (currentUid) {
@@ -1188,6 +1258,7 @@ function DashboardRW({ onCetak, onLogout }) {
       });
       alert("Data warga berhasil diperbarui oleh RW!");
       setWargaEditRw(null);
+      fetchWargaRwOptimized();
     } catch (err) {
       alert("Gagal memperbarui data warga: " + err.message);
     }
@@ -1230,10 +1301,8 @@ function DashboardRW({ onCetak, onLogout }) {
     const matchSearch = (w.nama || '').toLowerCase().includes(term) || 
                         (w.nik || '').includes(term) || 
                         (w.alamat || '').toLowerCase().includes(term);
-    
-    const matchRt = filterRtWargaRw === 'semua' || parseInt(w.rt, 10) === parseInt(filterRtWargaRw, 10);
 
-    return matchSearch && matchRt;
+    return matchSearch;
   });
 
   const totalPagesWargaRw = itemsPerPageWargaRw === 'semua' ? 1 : Math.ceil(filteredWargaRw.length / itemsPerPageWargaRw) || 1;
@@ -1432,10 +1501,18 @@ function DashboardRW({ onCetak, onLogout }) {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-cyan-500/30 pb-4">
                 <div>
                   <h2 className="text-lg font-bold text-cyan-400 uppercase tracking-wider">DATABASE WARGA RW 05</h2>
-                  <p className="text-xs text-slate-400">Pencarian & pengelolaan seluruh data warga di wilayah RW 05</p>
+                  <p className="text-xs text-slate-400">Pencarian data warga hemat kuota (Maksimal 150 data per query)</p>
                 </div>
-                <div className="text-xs text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 px-3 py-1.5 rounded-xl font-bold">
-                  Total Hasil: {filteredWargaRw.length} Warga
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={fetchWargaRwOptimized} 
+                    className="text-xs bg-cyan-800 hover:bg-cyan-700 text-white font-bold px-3 py-1.5 rounded-xl transition-all"
+                  >
+                    🔄 Muat Ulang Data
+                  </button>
+                  <div className="text-xs text-cyan-300 bg-cyan-950/60 border border-cyan-500/40 px-3 py-1.5 rounded-xl font-bold">
+                    Total Hasil: {filteredWargaRw.length} Warga
+                  </div>
                 </div>
               </div>
 
@@ -1452,27 +1529,16 @@ function DashboardRW({ onCetak, onLogout }) {
                 </div>
 
                 <div className="md:col-span-3">
-                  <label className="text-[10px] font-bold text-cyan-300 block mb-1 uppercase">Filter RT</label>
-                  {/* PILIHAN RT DIPERBAARUI DARI RT 01 HINGGA RT 13 */}
+                  <label className="text-[10px] font-bold text-cyan-300 block mb-1 uppercase">Filter RT (1 s/d 13)</label>
                   <select 
                     value={filterRtWargaRw} 
                     onChange={e => { setFilterRtWargaRw(e.target.value); setCurrentPageWargaRw(1); }} 
                     className={inputClass}
                   >
-                    <option className="bg-slate-900" value="semua">Semua RT</option>
-                    <option className="bg-slate-900" value="01">RT 01</option>
-                    <option className="bg-slate-900" value="02">RT 02</option>
-                    <option className="bg-slate-900" value="03">RT 03</option>
-                    <option className="bg-slate-900" value="04">RT 04</option>
-                    <option className="bg-slate-900" value="05">RT 05</option>
-                    <option className="bg-slate-900" value="06">RT 06</option>
-                    <option className="bg-slate-900" value="07">RT 07</option>
-                    <option className="bg-slate-900" value="08">RT 08</option>
-                    <option className="bg-slate-900" value="09">RT 09</option>
-                    <option className="bg-slate-900" value="10">RT 10</option>
-                    <option className="bg-slate-900" value="11">RT 11</option>
-                    <option className="bg-slate-900" value="12">RT 12</option>
-                    <option className="bg-slate-900" value="13">RT 13</option>
+                    <option className="bg-slate-900" value="semua">Semua RT (Terbatas 150)</option>
+                    {Array.from({ length: 13 }, (_, i) => String(i + 1).padStart(2, '0')).map(num => (
+                      <option key={num} className="bg-slate-900" value={num}>RT {num}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -1492,60 +1558,64 @@ function DashboardRW({ onCetak, onLogout }) {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="border-b border-cyan-500/30 text-cyan-300 bg-black/20">
-                      <th className="p-3">No</th>
-                      <th className="p-3">NIK</th>
-                      <th className="p-3">Nama Warga</th>
-                      <th className="p-3">L/P</th>
-                      <th className="p-3">TTL</th>
-                      <th className="p-3">Agama</th>
-                      <th className="p-3">Pekerjaan</th>
-                      <th className="p-3">Alamat</th>
-                      <th className="p-3">RT</th>
-                      <th className="p-3">RW</th>
-                      <th className="p-3 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedWargaRw.length > 0 ? (
-                      paginatedWargaRw.map((w, idx) => (
-                        <tr key={w.id || idx} className="border-b border-white/5 hover:bg-white/5 text-slate-300">
-                          <td className="p-3 text-slate-500">
-                            {itemsPerPageWargaRw === 'semua' ? idx + 1 : (currentPageWargaRw - 1) * itemsPerPageWargaRw + idx + 1}
-                          </td>
-                          <td className="p-3 font-mono text-cyan-200">{w.nik}</td>
-                          <td className="p-3 font-bold text-white uppercase">{w.nama}</td>
-                          <td className="p-3">{w.jenis_kelamin === 'Lk' ? 'L' : 'P'}</td>
-                          <td className="p-3">{w.tempat_lahir}, {w.tanggal_lahir}</td>
-                          <td className="p-3">{w.agama}</td>
-                          <td className="p-3">{w.pekerjaan}</td>
-                          
-                          {/* KOLOM TERPISAH: ALAMAT, RT, RW */}
-                          <td className="p-3 truncate max-w-[150px]">{w.alamat}</td>
-                          <td className="p-3 font-bold text-cyan-300">RT {w.rt}</td>
-                          <td className="p-3 font-bold text-cyan-300">RW {w.rw || '05'}</td>
-
-                          <td className="p-3 text-center">
-                            <button 
-                              onClick={() => setWargaEditRw(w)} 
-                              className="text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/20 px-3 py-1 rounded-lg font-bold text-[11px] transition-all"
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="11" className="text-center py-8 text-slate-500 italic">Tidak ada data warga yang cocok dengan kriteria pencarian.</td>
+              {loadingWargaRw ? (
+                <div className="text-center py-12 text-cyan-400 font-bold animate-pulse">⏳ Memuat data warga...</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b border-cyan-500/30 text-cyan-300 bg-black/20">
+                        <th className="p-3">No</th>
+                        <th className="p-3">NIK</th>
+                        <th className="p-3">Nama Warga</th>
+                        <th className="p-3">L/P</th>
+                        <th className="p-3">TTL</th>
+                        <th className="p-3">Agama</th>
+                        <th className="p-3">Pekerjaan</th>
+                        <th className="p-3">Alamat</th>
+                        <th className="p-3">RT</th>
+                        <th className="p-3">RW</th>
+                        <th className="p-3 text-center">Aksi</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {paginatedWargaRw.length > 0 ? (
+                        paginatedWargaRw.map((w, idx) => (
+                          <tr key={w.id || idx} className="border-b border-white/5 hover:bg-white/5 text-slate-300">
+                            <td className="p-3 text-slate-500">
+                              {itemsPerPageWargaRw === 'semua' ? idx + 1 : (currentPageWargaRw - 1) * itemsPerPageWargaRw + idx + 1}
+                            </td>
+                            <td className="p-3 font-mono text-cyan-200">{w.nik}</td>
+                            <td className="p-3 font-bold text-white uppercase">{w.nama}</td>
+                            <td className="p-3">{w.jenis_kelamin === 'Lk' ? 'L' : 'P'}</td>
+                            <td className="p-3">{w.tempat_lahir}, {w.tanggal_lahir}</td>
+                            <td className="p-3">{w.agama}</td>
+                            <td className="p-3">{w.pekerjaan}</td>
+                            
+                            {/* KOLOM TERPISAH: ALAMAT, RT, RW */}
+                            <td className="p-3 truncate max-w-[150px]">{w.alamat}</td>
+                            <td className="p-3 font-bold text-cyan-300">RT {w.rt}</td>
+                            <td className="p-3 font-bold text-cyan-300">RW {w.rw || '05'}</td>
+
+                            <td className="p-3 text-center">
+                              <button 
+                                onClick={() => setWargaEditRw(w)} 
+                                className="text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/20 px-3 py-1 rounded-lg font-bold text-[11px] transition-all"
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="11" className="text-center py-8 text-slate-500 italic">Tidak ada data warga yang cocok dengan kriteria pencarian.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {itemsPerPageWargaRw !== 'semua' && totalPagesWargaRw > 1 && (
                 <div className="flex justify-between items-center pt-2 text-xs text-slate-400">
